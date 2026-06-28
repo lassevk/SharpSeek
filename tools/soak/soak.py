@@ -66,6 +66,20 @@ def descendants(pid, procs):
     return len(seen)
 
 
+def pick_edit_file(project_dir):
+    """Pick a safe existing C# file to apply incremental edits to (prefers a .razor.cs)."""
+    fallback = None
+    for root, dirs, files in os.walk(project_dir):
+        dirs[:] = [d for d in dirs if d not in ("bin", "obj", ".git", ".vs")]
+        for name in files:
+            if name.endswith(".razor.cs"):
+                return os.path.join(root, name)
+            if (fallback is None and name.endswith(".cs")
+                    and name != "Program.cs" and not name.endswith(".g.cs")):
+                fallback = os.path.join(root, name)
+    return fallback
+
+
 class McpClient:
     def __init__(self, proc):
         self._proc = proc
@@ -113,15 +127,25 @@ def main():
     parser.add_argument("iterations", nargs="?", type=int, default=150)
     parser.add_argument("reload_every", nargs="?", type=int, default=50)
     parser.add_argument("--project", default=None,
-                        help="Soak an existing (already-restored) project in place, READ-ONLY "
-                             "(no edits or reloads, so the project is never modified).")
+                        help="Soak an existing (already-restored) project in place. READ-ONLY "
+                             "unless --mutate is given.")
+    parser.add_argument("--mutate", action="store_true",
+                        help="With --project, allow edits and reloads. Use ONLY on a disposable copy.")
+    parser.add_argument("--edit-file", default=None,
+                        help="With --project --mutate: file to edit (relative to the project dir); "
+                             "auto-picked if omitted.")
     args = parser.parse_args()
 
     iterations = args.iterations
     external = args.project is not None
-    reload_every = 0 if external else args.reload_every
-    edit_every = 0 if external else 15
+    mutate = external and args.mutate
     sample_every = 10
+    if external:
+        reload_every = args.reload_every if mutate else 0
+        edit_every = 15 if mutate else 0
+    else:
+        reload_every = args.reload_every
+        edit_every = 15
 
     # Build the server once.
     print("Building server (Release)...")
@@ -136,7 +160,16 @@ def main():
     edit_file = edit_base = None
     if external:
         csproj = os.path.abspath(args.project)
-        print(f"External READ-ONLY soak (no edits/reloads) against {csproj}")
+        if mutate:
+            project_dir = os.path.dirname(csproj)
+            edit_file = (os.path.join(project_dir, args.edit_file) if args.edit_file
+                         else pick_edit_file(project_dir))
+            if not edit_file or not os.path.isfile(edit_file):
+                sys.exit("Could not find a file to edit; pass --edit-file.")
+            edit_base = open(edit_file, encoding="utf-8").read()
+            print(f"External MUTATING soak against {csproj}\n  edit file: {edit_file}")
+        else:
+            print(f"External READ-ONLY soak (no edits/reloads) against {csproj}")
     else:
         # Isolated temp copy of the fixture (so the repo is never touched), then restore it.
         workdir = tempfile.mkdtemp(prefix="sharpseek-soak-")
@@ -242,6 +275,12 @@ def main():
             proc.wait(timeout=5)
         except subprocess.TimeoutExpired:
             proc.kill()
+        if edit_base is not None and edit_file and os.path.isfile(edit_file):
+            try:
+                with open(edit_file, "w", encoding="utf-8") as handle:
+                    handle.write(edit_base)
+            except OSError:
+                pass
         if workdir is not None:
             shutil.rmtree(workdir, ignore_errors=True)
 
