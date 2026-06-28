@@ -25,6 +25,14 @@ HostApplicationBuilder builder = Host.CreateApplicationBuilder(args);
 // The stdio transport uses stdout for protocol messages, so all logging must go to stderr.
 builder.Logging.AddConsole(options => options.LogToStandardErrorThreshold = LogLevel.Trace);
 
+// Optional file logging (off by default): --log-file <path> or SHARPSEEK_LOG_FILE.
+string? logFile = builder.Configuration["log-file"]
+    ?? Environment.GetEnvironmentVariable("SHARPSEEK_LOG_FILE");
+if (!string.IsNullOrWhiteSpace(logFile))
+{
+    builder.Logging.AddProvider(new FileLoggerProvider(logFile));
+}
+
 string fullProjectPath = Path.GetFullPath(projectPath);
 builder.Services.AddSingleton(serviceProvider =>
     new ProjectSession(fullProjectPath, serviceProvider.GetRequiredService<ILogger<ProjectSession>>()));

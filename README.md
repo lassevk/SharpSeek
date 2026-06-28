@@ -84,6 +84,19 @@ Example MCP client registration (e.g. an editor/agent `mcp.json`):
 }
 ```
 
+### Logging
+
+All logging goes to **stderr** (stdout is the MCP channel); your MCP client captures it. The
+default level is `Information` — set `Logging__LogLevel__Default=Warning` to quieten it.
+
+For a persistent log, enable optional **file logging** with `--log-file <path>` or the
+`SHARPSEEK_LOG_FILE` environment variable. The file is appended to and rotates to a single
+`.old` backup at ~10 MB, so it stays bounded on a long-running server:
+
+```sh
+dotnet run --project src/SharpSeek.Server -- --project <path-to-csproj> --log-file sharpseek.log
+```
+
 Tools:
 
 | Tool | Description |
