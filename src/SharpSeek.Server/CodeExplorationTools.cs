@@ -23,8 +23,8 @@ internal sealed class CodeExplorationTools
         ProjectSession session,
         SymbolExplorer explorer,
         [Description("The name or pattern to search for.")] string query,
-        [Description("Maximum number of results to return (default 50).")] int max,
-        CancellationToken cancellationToken)
+        [Description("Maximum number of results to return (default 50).")] int max = 50,
+        CancellationToken cancellationToken = default)
     {
         Project project = await session.GetProjectAsync(cancellationToken);
         IReadOnlyList<SymbolMatch> results = await explorer.SearchSymbolsAsync(

@@ -78,6 +78,16 @@ internal sealed record OutlineItemDto(string Symbol, string Kind, int Line)
     public static OutlineItemDto From(OutlineItem item) => new(item.Display, item.Kind, item.Line);
 }
 
+/// <summary>The MCP-facing compiler diagnostic.</summary>
+internal sealed record DiagnosticDto(string Id, string Severity, string Message, LocationDto? Location)
+{
+    public static DiagnosticDto From(DiagnosticInfo diagnostic) => new(
+        diagnostic.Id,
+        diagnostic.Severity,
+        diagnostic.Message,
+        diagnostic.Location is null ? null : LocationDto.From(diagnostic.Location));
+}
+
 /// <summary>The MCP-facing result for an unused (dead-code) symbol.</summary>
 internal sealed record UnusedSymbolDto(string Symbol, string Kind, LocationDto Location)
 {

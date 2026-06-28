@@ -32,4 +32,25 @@ internal sealed class CodeAnalysisTools
 
         return [.. results.Select(UnusedSymbolDto.From)];
     }
+
+    [McpServerTool(Name = "get_diagnostics")]
+    [Description(
+        "Get compiler diagnostics (errors, warnings) for the project, or for a single file when " +
+        "filePath is given. minimumSeverity is one of error, warning (default), info, hidden. " +
+        "Diagnostics in generated code are mapped back to their original location.")]
+    public static async Task<IReadOnlyList<DiagnosticDto>> GetDiagnosticsAsync(
+        ProjectSession session,
+        DiagnosticReader reader,
+        [Description("Optional path (absolute or path suffix) to restrict diagnostics to one file.")]
+        string? filePath = null,
+        [Description("Minimum severity: error, warning (default), info, or hidden.")]
+        string? minimumSeverity = null,
+        CancellationToken cancellationToken = default)
+    {
+        Project project = await session.GetProjectAsync(cancellationToken);
+        IReadOnlyList<DiagnosticInfo> results =
+            await reader.GetDiagnosticsAsync(project, filePath, minimumSeverity, cancellationToken);
+
+        return [.. results.Select(DiagnosticDto.From)];
+    }
 }
