@@ -18,7 +18,7 @@ public class FindLiteralUsagesTests
         SymbolExplorer explorer = new();
 
         IReadOnlyList<ReferenceLocationInfo> results =
-            await explorer.FindLiteralUsagesAsync(_fixture.Project, "Hello", cancellationToken);
+            await explorer.FindLiteralUsagesAsync(_fixture.Solution, "Hello", cancellationToken);
 
         Assert.Contains(results, location =>
             location.Origin == ReferenceOrigin.Handwritten && location.FilePath.EndsWith("Greeting.cs"));
@@ -35,7 +35,7 @@ public class FindLiteralUsagesTests
         // than mapping back to the .razor — but it is still found, which a source-only search
         // would miss.)
         IReadOnlyList<ReferenceLocationInfo> results =
-            await explorer.FindLiteralUsagesAsync(_fixture.Project, "Forrige år", cancellationToken);
+            await explorer.FindLiteralUsagesAsync(_fixture.Solution, "Forrige år", cancellationToken);
 
         Assert.Contains(results, location =>
             location.Origin == ReferenceOrigin.Generated && location.FilePath.Contains("Calendar_razor"));

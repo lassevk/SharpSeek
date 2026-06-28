@@ -19,7 +19,7 @@ public class CallHierarchyTests
 
         // WithDeadCode.Used() calls Helper(), so Helper's incoming callers include Used.
         IReadOnlyList<CallHierarchy> results =
-            await analyzer.AnalyzeAsync(_fixture.Project, "Helper", cancellationToken);
+            await analyzer.AnalyzeAsync(_fixture.Solution, "Helper", cancellationToken);
 
         CallHierarchy hierarchy = Assert.Single(results);
         Assert.Contains(hierarchy.Incoming, call => call.Caller.Contains("Used"));
@@ -32,7 +32,7 @@ public class CallHierarchyTests
         CallHierarchyAnalyzer analyzer = new();
 
         IReadOnlyList<CallHierarchy> results =
-            await analyzer.AnalyzeAsync(_fixture.Project, "Used", cancellationToken);
+            await analyzer.AnalyzeAsync(_fixture.Solution, "Used", cancellationToken);
 
         CallHierarchy hierarchy = Assert.Single(results);
         Assert.Contains(hierarchy.Outgoing, call => call.Callee.Contains("Helper"));

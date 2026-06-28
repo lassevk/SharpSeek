@@ -104,6 +104,14 @@ internal sealed record GeneratorDto(string Assembly, int Generators, int OutputD
         new(generator.Assembly, generator.GeneratorCount, generator.OutputDocuments);
 }
 
+/// <summary>The MCP-facing solution overview.</summary>
+internal sealed record SolutionOverviewDto(string? FilePath, IReadOnlyList<ProjectOverviewDto> Projects)
+{
+    public static SolutionOverviewDto From(SolutionOverview overview) => new(
+        overview.FilePath,
+        [.. overview.Projects.Select(ProjectOverviewDto.From)]);
+}
+
 /// <summary>The MCP-facing project overview.</summary>
 internal sealed record ProjectOverviewDto(
     string Name,

@@ -14,12 +14,26 @@ public static class GeneratorHealthCheck
     private const string RazorGeneratorAssembly = "Microsoft.CodeAnalysis.Razor.Compiler";
 
     /// <summary>
-    /// Returns a human-readable problem description when the Razor generator is referenced by the
-    /// project but exposes no generators (the Roslyn-vs-SDK version skew). Returns <c>null</c> when
-    /// the generator is healthy, or when the project has no Razor generator at all (for example a
-    /// non-Blazor project).
+    /// Returns a human-readable problem description when a project's Razor generator is referenced
+    /// but exposes no generators (the Roslyn-vs-SDK version skew). Returns <c>null</c> when all
+    /// projects are healthy, or when no project has a Razor generator (for example a non-Blazor
+    /// solution).
     /// </summary>
-    public static string? DetectRazorGeneratorSkew(Project project)
+    public static string? DetectRazorGeneratorSkew(Solution solution)
+    {
+        foreach (Project project in solution.Projects)
+        {
+            string? problem = DetectRazorGeneratorSkew(project);
+            if (problem is not null)
+            {
+                return $"[{project.Name}] {problem}";
+            }
+        }
+
+        return null;
+    }
+
+    private static string? DetectRazorGeneratorSkew(Project project)
     {
         foreach (var reference in project.AnalyzerReferences)
         {

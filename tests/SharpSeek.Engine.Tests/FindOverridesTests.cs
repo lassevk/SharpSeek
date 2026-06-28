@@ -18,7 +18,7 @@ public class FindOverridesTests
         SymbolNavigator navigator = new();
 
         IReadOnlyList<OverrideHierarchy> results =
-            await navigator.FindOverridesAsync(_fixture.Project, "Speak", cancellationToken);
+            await navigator.FindOverridesAsync(_fixture.Solution, "Speak", cancellationToken);
 
         // The abstract Animal.Speak is overridden by Dog and Puppy.
         OverrideHierarchy animal = Assert.Single(results, result => result.SymbolDisplay.Contains("Animal"));

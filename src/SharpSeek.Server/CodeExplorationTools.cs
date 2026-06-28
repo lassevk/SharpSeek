@@ -9,14 +9,14 @@ using SharpSeek.Engine;
 namespace SharpSeek.Server;
 
 /// <summary>
-/// Read-only MCP tools for exploring the loaded .NET project.
+/// Read-only MCP tools for exploring the loaded .NET solution.
 /// </summary>
 [McpServerToolType]
 internal sealed class CodeExplorationTools
 {
     [McpServerTool(Name = "search_symbols")]
     [Description(
-        "Search the project's symbols by name pattern (supports substring and camel-case " +
+        "Search the solution's symbols by name pattern (supports substring and camel-case " +
         "matching), e.g. \"Greeter\" or \"FRA\" for FindReferencesAsync. Returns up to a limited " +
         "number of matches with their kind and primary location.")]
     public static async Task<IReadOnlyList<SymbolMatchDto>> SearchSymbolsAsync(
@@ -26,9 +26,9 @@ internal sealed class CodeExplorationTools
         [Description("Maximum number of results to return (default 50).")] int max = 50,
         CancellationToken cancellationToken = default)
     {
-        Project project = await session.GetProjectAsync(cancellationToken);
+        Solution solution = await session.GetSolutionAsync(cancellationToken);
         IReadOnlyList<SymbolMatch> results = await explorer.SearchSymbolsAsync(
-            project, query, max <= 0 ? 50 : max, cancellationToken);
+            solution, query, max <= 0 ? 50 : max, cancellationToken);
 
         return [.. results.Select(SymbolMatchDto.From)];
     }
@@ -46,9 +46,9 @@ internal sealed class CodeExplorationTools
         [Description("1-based column number.")] int column,
         CancellationToken cancellationToken)
     {
-        Project project = await session.GetProjectAsync(cancellationToken);
+        Solution solution = await session.GetSolutionAsync(cancellationToken);
         IReadOnlyList<SymbolDetails> results =
-            await explorer.ResolveSymbolAtAsync(project, filePath, line, column, cancellationToken);
+            await explorer.ResolveSymbolAtAsync(solution, filePath, line, column, cancellationToken);
 
         return [.. results.Select(SymbolInfoDto.From)];
     }
@@ -63,16 +63,16 @@ internal sealed class CodeExplorationTools
         [Description("The simple (unqualified) name of the symbol.")] string symbolName,
         CancellationToken cancellationToken)
     {
-        Project project = await session.GetProjectAsync(cancellationToken);
+        Solution solution = await session.GetSolutionAsync(cancellationToken);
         IReadOnlyList<SymbolDetails> results =
-            await explorer.GetSymbolInfoAsync(project, symbolName, cancellationToken);
+            await explorer.GetSymbolInfoAsync(solution, symbolName, cancellationToken);
 
         return [.. results.Select(SymbolInfoDto.From)];
     }
 
     [McpServerTool(Name = "find_literal_usages")]
     [Description(
-        "Find where a literal value (string, number, or char) appears in the project, including " +
+        "Find where a literal value (string, number, or char) appears in the solution, including " +
         "literals baked into source-generated code. Locations are mapped back to source where the " +
         "generator provides mapping (static Razor markup stays in the generated file).")]
     public static async Task<IReadOnlyList<LocationDto>> FindLiteralUsagesAsync(
@@ -81,9 +81,9 @@ internal sealed class CodeExplorationTools
         [Description("The literal value to find, e.g. \"Hello\" or \"42\".")] string value,
         CancellationToken cancellationToken)
     {
-        Project project = await session.GetProjectAsync(cancellationToken);
+        Solution solution = await session.GetSolutionAsync(cancellationToken);
         IReadOnlyList<ReferenceLocationInfo> results =
-            await explorer.FindLiteralUsagesAsync(project, value, cancellationToken);
+            await explorer.FindLiteralUsagesAsync(solution, value, cancellationToken);
 
         return [.. results.Select(LocationDto.From)];
     }
@@ -99,9 +99,9 @@ internal sealed class CodeExplorationTools
         string filePath,
         CancellationToken cancellationToken)
     {
-        Project project = await session.GetProjectAsync(cancellationToken);
+        Solution solution = await session.GetSolutionAsync(cancellationToken);
         IReadOnlyList<OutlineItem> results =
-            await explorer.DocumentOutlineAsync(project, filePath, cancellationToken);
+            await explorer.DocumentOutlineAsync(solution, filePath, cancellationToken);
 
         return [.. results.Select(OutlineItemDto.From)];
     }

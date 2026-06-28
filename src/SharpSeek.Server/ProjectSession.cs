@@ -8,15 +8,17 @@ using SharpSeek.Engine;
 namespace SharpSeek.Server;
 
 /// <summary>
-/// Holds the project the server operates on, loaded once and kept warm for the server's lifetime.
-/// A file-system watcher records changes; the project is then refreshed lazily on the next
-/// request — applying source edits in-memory where possible, or reloading on structural changes.
+/// Owns the solution the server operates on. The target is discovered from the session - an
+/// explicit override, else the client's workspace roots, else the working directory - loaded once
+/// and kept warm. A file-system watcher records changes; the solution is refreshed lazily on the
+/// next request (incremental for source edits, reload for structural/.csproj changes).
 /// </summary>
 internal sealed class ProjectSession : IDisposable
 {
-    private static readonly string[] RelevantExtensions = [".cs", ".razor", ".cshtml", ".csproj"];
+    private static readonly string[] RelevantExtensions =
+        [".cs", ".razor", ".cshtml", ".csproj", ".sln", ".slnx"];
 
-    private readonly string _projectPath;
+    private readonly string? _explicitPath;
     private readonly ILogger<ProjectSession> _logger;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly ConcurrentDictionary<string, byte> _changedFiles =
@@ -24,29 +26,37 @@ internal sealed class ProjectSession : IDisposable
 
     private LiveWorkspace? _workspace;
     private FileSystemWatcher? _watcher;
+    private string? _loadedPath;
     private string? _generatorProblem;
     private volatile bool _dirty;
     private volatile bool _structuralChange;
 
-    public ProjectSession(string projectPath, ILogger<ProjectSession> logger)
+    public ProjectSession(string? explicitPath, ILogger<ProjectSession> logger)
     {
-        _projectPath = projectPath;
+        _explicitPath = explicitPath;
         _logger = logger;
     }
 
     /// <summary>
-    /// Returns the current project, loading it on first use and refreshing it if files have
-    /// changed since the last request. Throws if the Razor generator failed to load (version
-    /// skew), so callers get a loud error rather than silently incomplete results.
+    /// Returns the current solution, discovering and loading it on first use and refreshing it if
+    /// files have changed. Throws if the Razor generator failed to load (version skew).
     /// </summary>
-    public async Task<Project> GetProjectAsync(CancellationToken cancellationToken)
+    public async Task<Solution> GetSolutionAsync(CancellationToken cancellationToken)
     {
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             if (_workspace is null)
             {
-                await InitializeAsync(cancellationToken).ConfigureAwait(false);
+                // Discover from the session: an explicit override, else the working directory the
+                // server was launched in (which a client such as Claude Code sets to the project
+                // folder). activate_project can switch it at runtime.
+                string target = _explicitPath
+                    ?? ProjectDiscovery.Discover(Directory.GetCurrentDirectory())
+                    ?? throw new InvalidOperationException(
+                        "No .NET solution or project was found for this session. Pass --project, " +
+                        "set SHARPSEEK_PROJECT, or call activate_project with a path.");
+                await LoadTargetAsync(target, cancellationToken).ConfigureAwait(false);
             }
             else if (_dirty)
             {
@@ -58,7 +68,7 @@ internal sealed class ProjectSession : IDisposable
                 throw new InvalidOperationException(_generatorProblem);
             }
 
-            return _workspace!.Project;
+            return _workspace!.Solution;
         }
         finally
         {
@@ -66,17 +76,47 @@ internal sealed class ProjectSession : IDisposable
         }
     }
 
-    private async Task InitializeAsync(CancellationToken cancellationToken)
+    /// <summary>Switches the analysed solution/project to the given path (file or directory).</summary>
+    public async Task<string> ActivateAsync(string path, CancellationToken cancellationToken)
     {
-        _workspace = await LiveWorkspace.LoadAsync(_projectPath, cancellationToken).ConfigureAwait(false);
-        CheckGeneratorHealth();
-        StartWatching();
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            string target = ResolveTarget(path)
+                ?? throw new InvalidOperationException(
+                    $"No .NET solution or project was found at '{path}'.");
+            await LoadTargetAsync(target, cancellationToken).ConfigureAwait(false);
+            return _loadedPath!;
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    private async Task LoadTargetAsync(string target, CancellationToken cancellationToken)
+    {
+        _workspace?.Dispose();
+        _workspace = await LiveWorkspace.LoadAsync(target, cancellationToken).ConfigureAwait(false);
+        _loadedPath = Path.GetFullPath(target);
+
+        _generatorProblem = _workspace.DetectGeneratorProblem();
+        if (_generatorProblem is not null)
+        {
+            _logger.LogError("{Problem}", _generatorProblem);
+        }
+
+        _changedFiles.Clear();
+        _dirty = false;
+        _structuralChange = false;
+        StartWatching(Path.GetDirectoryName(_loadedPath));
+
+        _logger.LogInformation(
+            "Loaded {Path} ({Count} project(s)).", _loadedPath, _workspace.Solution.Projects.Count());
     }
 
     private async Task RefreshAsync(CancellationToken cancellationToken)
     {
-        // Snapshot and clear the pending changes before clearing the dirty flag. A change that
-        // races in here is best-effort: it re-sets the flag and is picked up next request.
         bool structural = _structuralChange;
         string[] changed = [.. _changedFiles.Keys];
         _structuralChange = false;
@@ -113,23 +153,29 @@ internal sealed class ProjectSession : IDisposable
     private async Task ReloadAsync(CancellationToken cancellationToken)
     {
         await _workspace!.ReloadAsync(cancellationToken).ConfigureAwait(false);
-        CheckGeneratorHealth();
-        _logger.LogInformation("Reloaded project from disk.");
-    }
-
-    private void CheckGeneratorHealth()
-    {
-        _generatorProblem = _workspace!.DetectGeneratorProblem();
+        _generatorProblem = _workspace.DetectGeneratorProblem();
         if (_generatorProblem is not null)
         {
             _logger.LogError("{Problem}", _generatorProblem);
         }
+
+        _logger.LogInformation("Reloaded {Path} from disk.", _loadedPath);
     }
 
-    private void StartWatching()
+    private static string? ResolveTarget(string path)
     {
-        string? directory = Path.GetDirectoryName(_projectPath);
-        if (directory is null)
+        if (File.Exists(path))
+        {
+            return Path.GetFullPath(path);
+        }
+
+        return Directory.Exists(path) ? ProjectDiscovery.Discover(path) : null;
+    }
+
+    private void StartWatching(string? directory)
+    {
+        _watcher?.Dispose();
+        if (directory is null || !Directory.Exists(directory))
         {
             return;
         }
@@ -138,7 +184,6 @@ internal sealed class ProjectSession : IDisposable
         {
             IncludeSubdirectories = true,
             NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName | NotifyFilters.DirectoryName,
-            // A larger buffer reduces dropped events during bursty changes (e.g. a git checkout).
             InternalBufferSize = 64 * 1024,
         };
         _watcher.Changed += OnContentChanged;
@@ -149,15 +194,6 @@ internal sealed class ProjectSession : IDisposable
         _watcher.EnableRaisingEvents = true;
     }
 
-    private void OnWatcherError(object sender, ErrorEventArgs e)
-    {
-        // The buffer overflowed (too many changes at once) and events were dropped. Force a full
-        // reload on the next request rather than risk serving stale results.
-        _structuralChange = true;
-        _dirty = true;
-        _logger.LogWarning(e.GetException(), "File watcher error; the project will be reloaded.");
-    }
-
     private void OnContentChanged(object sender, FileSystemEventArgs e)
     {
         if (!IsRelevant(e.FullPath))
@@ -165,7 +201,10 @@ internal sealed class ProjectSession : IDisposable
             return;
         }
 
-        if (string.Equals(Path.GetExtension(e.FullPath), ".csproj", StringComparison.OrdinalIgnoreCase))
+        string extension = Path.GetExtension(e.FullPath);
+        if (extension.Equals(".csproj", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".sln", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".slnx", StringComparison.OrdinalIgnoreCase))
         {
             _structuralChange = true;
         }
@@ -188,6 +227,13 @@ internal sealed class ProjectSession : IDisposable
         _dirty = true;
     }
 
+    private void OnWatcherError(object sender, ErrorEventArgs e)
+    {
+        _structuralChange = true;
+        _dirty = true;
+        _logger.LogWarning(e.GetException(), "File watcher error; the project will be reloaded.");
+    }
+
     private static bool IsRelevant(string path)
     {
         string normalized = path.Replace('\\', '/');
@@ -204,7 +250,6 @@ internal sealed class ProjectSession : IDisposable
 
     private static string? TryReadAllText(string path)
     {
-        // The editor may still hold the file briefly after a save; retry a couple of times.
         for (int attempt = 0; attempt < 3; attempt++)
         {
             try

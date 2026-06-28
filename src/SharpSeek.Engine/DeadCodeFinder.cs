@@ -24,14 +24,13 @@ public sealed class DeadCodeFinder
     /// that is an inherent limit of static analysis.
     /// </remarks>
     public async Task<IReadOnlyList<UnusedSymbol>> FindUnusedPrivateSymbolsAsync(
-        Project project,
+        Solution solution,
         CancellationToken cancellationToken = default)
     {
-        HashSet<string> handwrittenPaths = LocationDescriptor.HandwrittenPaths(project);
-        Solution solution = project.Solution;
+        HashSet<string> handwrittenPaths = LocationDescriptor.HandwrittenPaths(solution);
 
         IEnumerable<ISymbol> members = await SymbolFinder
-            .FindSourceDeclarationsAsync(project, _ => true, SymbolFilter.Member, cancellationToken)
+            .FindSourceDeclarationsAsync(solution, _ => true, SymbolFilter.Member, cancellationToken)
             .ConfigureAwait(false);
 
         List<UnusedSymbol> results = [];

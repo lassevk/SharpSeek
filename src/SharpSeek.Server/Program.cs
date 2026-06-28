@@ -12,13 +12,9 @@ if (args.Length > 0 && string.Equals(args[0], "diagnose", StringComparison.Ordin
     return await Diagnostics.RunAsync(args[1..]);
 }
 
-string? projectPath = ResolveProjectPath(args);
-if (projectPath is null)
-{
-    await Console.Error.WriteLineAsync(
-        "No project configured. Pass --project <path-to-csproj> or set SHARPSEEK_PROJECT.");
-    return 1;
-}
+// The project is optional: if not given, it is discovered from the session (the client's
+// workspace roots, else the working directory).
+string? explicitProject = ResolveProjectPath(args);
 
 HostApplicationBuilder builder = Host.CreateApplicationBuilder(args);
 
@@ -33,9 +29,9 @@ if (!string.IsNullOrWhiteSpace(logFile))
     builder.Logging.AddProvider(new FileLoggerProvider(logFile));
 }
 
-string fullProjectPath = Path.GetFullPath(projectPath);
+string? explicitFullPath = explicitProject is null ? null : Path.GetFullPath(explicitProject);
 builder.Services.AddSingleton(serviceProvider =>
-    new ProjectSession(fullProjectPath, serviceProvider.GetRequiredService<ILogger<ProjectSession>>()));
+    new ProjectSession(explicitFullPath, serviceProvider.GetRequiredService<ILogger<ProjectSession>>()));
 builder.Services.AddSingleton<ReferenceFinder>();
 builder.Services.AddSingleton<SymbolNavigator>();
 builder.Services.AddSingleton<SymbolExplorer>();
@@ -45,15 +41,14 @@ builder.Services.AddSingleton<CallHierarchyAnalyzer>();
 builder.Services.AddSingleton<ProjectInspector>();
 builder.Services
     .AddMcpServer(options => options.ServerInstructions =
-        "SharpSeek is a Roslyn-based code navigation server for a SINGLE .NET/C# project. It is " +
-        "bound for its entire lifetime to exactly one project:\n" +
-        $"    {fullProjectPath}\n" +
-        "Every tool operates on that project only - results always pertain to it, regardless of " +
-        "the current working directory or any other project that may be open. Use these tools " +
-        "ONLY for navigating and analysing that .NET/C# project. They do not apply to other " +
-        "projects, other solutions, or non-.NET languages (e.g. JavaScript, Python, Go). A key " +
-        "strength is that references are found even inside source-generated code (e.g. Blazor / " +
-        "Razor) and mapped back to the original source.")
+        "SharpSeek is a Roslyn-based code navigation server for .NET/C#. It analyses ONE .NET " +
+        "solution (or project) per session, discovered from the current workspace folder (the " +
+        "directory you are working in) unless set explicitly. Every tool operates on that one " +
+        ".NET solution. Use these tools ONLY for navigating and analysing .NET/C# code - they do " +
+        "not apply to non-.NET languages (e.g. JavaScript, Python, Go); if the current project is " +
+        "not .NET/C#, do not use them. A key strength is that references are found even inside " +
+        "source-generated code (e.g. Blazor / Razor) and mapped back to the original source. Use " +
+        "the activate_project tool to point the server at a different solution or project.")
     .WithStdioServerTransport()
     .WithToolsFromAssembly();
 

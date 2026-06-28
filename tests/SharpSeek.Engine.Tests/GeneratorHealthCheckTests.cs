@@ -16,7 +16,7 @@ public class GeneratorHealthCheckTests
     {
         // The fixture is a real Razor project whose generator runs, so the skew guard must not
         // fire — proving it does not false-positive on a working setup.
-        string? problem = GeneratorHealthCheck.DetectRazorGeneratorSkew(_fixture.Project);
+        string? problem = GeneratorHealthCheck.DetectRazorGeneratorSkew(_fixture.Solution);
 
         Assert.Null(problem);
     }

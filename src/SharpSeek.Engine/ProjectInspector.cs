@@ -3,7 +3,7 @@ using Microsoft.CodeAnalysis.Text;
 
 namespace SharpSeek.Engine;
 
-/// <summary>High-level information about a loaded project.</summary>
+/// <summary>High-level information about a single project.</summary>
 public sealed record ProjectOverview(
     string Name,
     string? AssemblyName,
@@ -15,43 +15,53 @@ public sealed record ProjectOverview(
     int MetadataReferenceCount,
     IReadOnlyList<string> ProjectReferences);
 
+/// <summary>High-level information about the loaded solution.</summary>
+public sealed record SolutionOverview(string? FilePath, IReadOnlyList<ProjectOverview> Projects);
+
 /// <summary>The text of a source-generated document.</summary>
 public sealed record GeneratedDocumentInfo(string Name, string? FilePath, string Text);
 
 /// <summary>A source generator that ran, and how many documents it produced.</summary>
 public sealed record GeneratorInfo(string Assembly, int GeneratorCount, int OutputDocuments);
 
-/// <summary>Reports high-level structure of a loaded project.</summary>
+/// <summary>Reports high-level structure of a loaded solution.</summary>
 public sealed class ProjectInspector
 {
-    public async Task<ProjectOverview> GetOverviewAsync(
-        Project project,
+    public async Task<SolutionOverview> GetOverviewAsync(
+        Solution solution,
         CancellationToken cancellationToken = default)
     {
-        IEnumerable<Document> generated = await project
-            .GetSourceGeneratedDocumentsAsync(cancellationToken)
-            .ConfigureAwait(false);
+        List<ProjectOverview> projects = [];
+        foreach (Project project in solution.Projects)
+        {
+            IEnumerable<Document> generated = await project
+                .GetSourceGeneratedDocumentsAsync(cancellationToken)
+                .ConfigureAwait(false);
 
-        Solution solution = project.Solution;
-        List<string> projectReferences =
-        [
-            .. project.ProjectReferences
-                .Select(reference => solution.GetProject(reference.ProjectId)?.Name)
-                .Where(name => name is not null)
-                .Select(name => name!)
-                .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
-        ];
+            List<string> projectReferences =
+            [
+                .. project.ProjectReferences
+                    .Select(reference => solution.GetProject(reference.ProjectId)?.Name)
+                    .Where(name => name is not null)
+                    .Select(name => name!)
+                    .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
+            ];
 
-        return new ProjectOverview(
-            project.Name,
-            project.AssemblyName,
-            project.Language,
-            project.FilePath,
-            project.Documents.Count(),
-            project.AdditionalDocuments.Count(),
-            generated.Count(),
-            project.MetadataReferences.Count,
-            projectReferences);
+            projects.Add(new ProjectOverview(
+                project.Name,
+                project.AssemblyName,
+                project.Language,
+                project.FilePath,
+                project.Documents.Count(),
+                project.AdditionalDocuments.Count(),
+                generated.Count(),
+                project.MetadataReferences.Count,
+                projectReferences));
+        }
+
+        return new SolutionOverview(
+            solution.FilePath,
+            [.. projects.OrderBy(project => project.Name, StringComparer.OrdinalIgnoreCase)]);
     }
 
     /// <summary>
@@ -59,64 +69,79 @@ public sealed class ProjectInspector
     /// the originating source file (e.g. <c>Calendar.razor</c> matches <c>Calendar_razor.g.cs</c>).
     /// </summary>
     public async Task<IReadOnlyList<GeneratedDocumentInfo>> GetGeneratedDocumentsAsync(
-        Project project,
+        Solution solution,
         string query,
         CancellationToken cancellationToken = default)
     {
-        IEnumerable<Document> generated = await project
-            .GetSourceGeneratedDocumentsAsync(cancellationToken)
-            .ConfigureAwait(false);
-
         string normalized = query.Replace('\\', '/');
         string underscored = normalized.Replace('.', '_');
 
         List<GeneratedDocumentInfo> results = [];
-        foreach (Document document in generated)
+        foreach (Project project in solution.Projects)
         {
-            string path = (document.FilePath ?? string.Empty).Replace('\\', '/');
-            bool matches = path.Contains(normalized, StringComparison.OrdinalIgnoreCase)
-                || document.Name.Contains(normalized, StringComparison.OrdinalIgnoreCase)
-                || document.Name.Contains(underscored, StringComparison.OrdinalIgnoreCase);
-            if (!matches)
-            {
-                continue;
-            }
+            IEnumerable<Document> generated = await project
+                .GetSourceGeneratedDocumentsAsync(cancellationToken)
+                .ConfigureAwait(false);
 
-            SourceText text = await document.GetTextAsync(cancellationToken).ConfigureAwait(false);
-            results.Add(new GeneratedDocumentInfo(document.Name, document.FilePath, text.ToString()));
+            foreach (Document document in generated)
+            {
+                string path = (document.FilePath ?? string.Empty).Replace('\\', '/');
+                bool matches = path.Contains(normalized, StringComparison.OrdinalIgnoreCase)
+                    || document.Name.Contains(normalized, StringComparison.OrdinalIgnoreCase)
+                    || document.Name.Contains(underscored, StringComparison.OrdinalIgnoreCase);
+                if (!matches)
+                {
+                    continue;
+                }
+
+                SourceText text = await document.GetTextAsync(cancellationToken).ConfigureAwait(false);
+                results.Add(new GeneratedDocumentInfo(document.Name, document.FilePath, text.ToString()));
+            }
         }
 
         return results;
     }
 
-    /// <summary>Lists the source generators that ran and how many documents each produced.</summary>
+    /// <summary>Lists the source generators that ran across the solution and their output counts.</summary>
     public async Task<IReadOnlyList<GeneratorInfo>> ListGeneratorsAsync(
-        Project project,
+        Solution solution,
         CancellationToken cancellationToken = default)
     {
-        IEnumerable<Document> generated = await project
-            .GetSourceGeneratedDocumentsAsync(cancellationToken)
-            .ConfigureAwait(false);
-        List<string> generatedPaths =
-            [.. generated.Select(document => (document.FilePath ?? string.Empty).Replace('\\', '/'))];
+        Dictionary<string, (int Generators, int Outputs)> byAssembly =
+            new(StringComparer.OrdinalIgnoreCase);
 
-        List<GeneratorInfo> results = [];
-        foreach (var reference in project.AnalyzerReferences)
+        foreach (Project project in solution.Projects)
         {
-            int generatorCount = reference.GetGenerators(LanguageNames.CSharp).Length;
-            if (generatorCount == 0)
+            IEnumerable<Document> generated = await project
+                .GetSourceGeneratedDocumentsAsync(cancellationToken)
+                .ConfigureAwait(false);
+            List<string> generatedPaths =
+                [.. generated.Select(document => (document.FilePath ?? string.Empty).Replace('\\', '/'))];
+
+            foreach (var reference in project.AnalyzerReferences)
             {
-                continue;
+                int generatorCount = reference.GetGenerators(LanguageNames.CSharp).Length;
+                if (generatorCount == 0)
+                {
+                    continue;
+                }
+
+                string assembly = Path.GetFileNameWithoutExtension(
+                    reference.FullPath ?? reference.Display ?? string.Empty);
+                int outputs = generatedPaths.Count(path =>
+                    path.Contains(assembly, StringComparison.OrdinalIgnoreCase));
+
+                byAssembly[assembly] = byAssembly.TryGetValue(assembly, out var existing)
+                    ? (Math.Max(existing.Generators, generatorCount), existing.Outputs + outputs)
+                    : (generatorCount, outputs);
             }
-
-            string assembly = Path.GetFileNameWithoutExtension(
-                reference.FullPath ?? reference.Display ?? string.Empty);
-            int outputs = generatedPaths.Count(path =>
-                path.Contains(assembly, StringComparison.OrdinalIgnoreCase));
-
-            results.Add(new GeneratorInfo(assembly, generatorCount, outputs));
         }
 
-        return results;
+        return
+        [
+            .. byAssembly
+                .Select(entry => new GeneratorInfo(entry.Key, entry.Value.Generators, entry.Value.Outputs))
+                .OrderBy(generator => generator.Assembly, StringComparer.OrdinalIgnoreCase)
+        ];
     }
 }

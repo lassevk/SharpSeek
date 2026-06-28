@@ -8,10 +8,10 @@ using Microsoft.CodeAnalysis.Text;
 namespace SharpSeek.Engine;
 
 /// <summary>
-/// A long-lived, mutable view of a single project loaded through <c>MSBuildWorkspace</c>. Unlike
-/// <see cref="WorkspaceLoader"/> (which returns a one-shot snapshot and disposes its workspace),
-/// this keeps the workspace alive so source edits can be applied in-memory — Roslyn then
-/// recomputes incrementally, re-running source generators as needed.
+/// A long-lived, mutable view of a loaded solution (or a single project, loaded into a solution).
+/// Unlike <see cref="WorkspaceLoader"/> (which returns a one-shot snapshot and disposes its
+/// workspace), this keeps the workspace alive so source edits can be applied in-memory — Roslyn
+/// then recomputes incrementally, re-running source generators as needed.
 /// </summary>
 /// <remarks>
 /// Edits are applied by forking the <see cref="Solution"/> in memory, never via
@@ -20,45 +20,68 @@ namespace SharpSeek.Engine;
 /// </remarks>
 public sealed class LiveWorkspace : IDisposable
 {
-    private readonly string _projectPath;
+    private readonly string _path;
+    private readonly bool _isSolution;
     private MSBuildWorkspace _workspace;
     private Solution _solution;
-    private ProjectId _projectId;
 
-    private LiveWorkspace(string projectPath, MSBuildWorkspace workspace, Project project)
+    private LiveWorkspace(string path, bool isSolution, MSBuildWorkspace workspace, Solution solution)
     {
-        _projectPath = projectPath;
+        _path = path;
+        _isSolution = isSolution;
         _workspace = workspace;
-        _solution = project.Solution;
-        _projectId = project.Id;
+        _solution = solution;
     }
 
-    /// <summary>The current project snapshot (including any in-memory edits applied so far).</summary>
-    public Project Project => _solution.GetProject(_projectId)
-        ?? throw new InvalidOperationException("The project is no longer present in the workspace.");
+    /// <summary>The current solution snapshot (including any in-memory edits applied so far).</summary>
+    public Solution Solution => _solution;
 
-    /// <summary>Opens a project and keeps its workspace alive for incremental updates.</summary>
-    public static Task<LiveWorkspace> LoadAsync(string projectPath, CancellationToken cancellationToken = default)
+    /// <summary>
+    /// Opens a solution (<c>.sln</c>/<c>.slnx</c>) or a single project (<c>.csproj</c>) and keeps
+    /// its workspace alive for incremental updates.
+    /// </summary>
+    public static Task<LiveWorkspace> LoadAsync(string path, CancellationToken cancellationToken = default)
     {
         // Register the SDK toolset before any MSBuild/workspace type is touched (see WorkspaceLoader).
         MSBuildRegistration.EnsureRegistered();
-        return LoadCoreAsync(Path.GetFullPath(projectPath), cancellationToken);
+        return LoadCoreAsync(Path.GetFullPath(path), cancellationToken);
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private static async Task<LiveWorkspace> LoadCoreAsync(string projectPath, CancellationToken cancellationToken)
+    private static async Task<LiveWorkspace> LoadCoreAsync(string path, CancellationToken cancellationToken)
     {
+        bool isSolution = IsSolutionPath(path);
         MSBuildWorkspace workspace = MSBuildWorkspace.Create();
-        Project project = await workspace
-            .OpenProjectAsync(projectPath, cancellationToken: cancellationToken)
+        Solution solution = await OpenAsync(workspace, path, isSolution, cancellationToken)
             .ConfigureAwait(false);
-        return new LiveWorkspace(projectPath, workspace, project);
+        return new LiveWorkspace(path, isSolution, workspace, solution);
+    }
+
+    private static async Task<Solution> OpenAsync(
+        MSBuildWorkspace workspace, string path, bool isSolution, CancellationToken cancellationToken)
+    {
+        if (isSolution)
+        {
+            return await workspace.OpenSolutionAsync(path, cancellationToken: cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        Project project = await workspace.OpenProjectAsync(path, cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
+        return project.Solution;
+    }
+
+    private static bool IsSolutionPath(string path)
+    {
+        string extension = Path.GetExtension(path);
+        return extension.Equals(".sln", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".slnx", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
     /// Updates the in-memory text of a file already known to the workspace (a document or a
     /// Razor-style additional document). Returns <c>false</c> if the file is not part of the
-    /// project (the caller should reload). Does not touch disk.
+    /// solution (the caller should reload). Does not touch disk.
     /// </summary>
     public bool TryApplyTextChange(string filePath, string text)
     {
@@ -92,23 +115,21 @@ public sealed class LiveWorkspace : IDisposable
         return true;
     }
 
-    /// <summary>Re-opens the project from disk, replacing the in-memory state.</summary>
+    /// <summary>Re-opens the solution/project from disk, replacing the in-memory state.</summary>
     public async Task ReloadAsync(CancellationToken cancellationToken = default)
     {
         MSBuildWorkspace fresh = MSBuildWorkspace.Create();
-        Project project = await fresh
-            .OpenProjectAsync(_projectPath, cancellationToken: cancellationToken)
+        Solution solution = await OpenAsync(fresh, _path, _isSolution, cancellationToken)
             .ConfigureAwait(false);
 
         MSBuildWorkspace previous = _workspace;
         _workspace = fresh;
-        _solution = project.Solution;
-        _projectId = project.Id;
+        _solution = solution;
         previous.Dispose();
     }
 
-    /// <summary>Returns a problem description if the Razor generator failed to load, else null.</summary>
-    public string? DetectGeneratorProblem() => GeneratorHealthCheck.DetectRazorGeneratorSkew(Project);
+    /// <summary>Returns a problem description if a Razor generator failed to load, else null.</summary>
+    public string? DetectGeneratorProblem() => GeneratorHealthCheck.DetectRazorGeneratorSkew(_solution);
 
     public void Dispose() => _workspace.Dispose();
 

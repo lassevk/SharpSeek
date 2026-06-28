@@ -37,10 +37,12 @@ The headline capability: *"find references to this method, including the `.razor
 
 ## Status
 
-A working MCP server with 16 read-only navigation/analysis tools (see
-[Running as an MCP server](#running-as-an-mcp-server)), a warm + incremental workspace that picks
-up on-disk edits, and a guard against the Roslyn↔SDK version skew that silently breaks the Razor
-generator. Every tool has an automated test against an in-repo [fixture](#testing).
+A working MCP server with 16 read-only navigation/analysis tools plus `activate_project` (see
+[Running as an MCP server](#running-as-an-mcp-server)). It analyses a whole **solution**,
+discovered from the session folder (so it follows whatever .NET repo you are working in), with a
+warm + incremental workspace that picks up on-disk edits and a guard against the Roslyn↔SDK
+version skew that silently breaks the Razor generator. Every tool has an automated test against an
+in-repo [fixture](#testing).
 
 The founding capability is proven end to end: `find_references` loads a Blazor project through
 `MSBuildWorkspace` on .NET 10 (with the Razor generator running), finds the `@onclick`-only
@@ -62,27 +64,36 @@ Not yet implemented: write operations (`rename_symbol`, `apply_code_fix`).
 
 ## Running as an MCP server
 
-The server speaks MCP over stdio. It operates on a single project, configured with `--project`
-or the `SHARPSEEK_PROJECT` environment variable. The project is loaded once and kept warm;
-on-disk edits are picked up automatically — source/`.razor` changes are applied incrementally
-in memory (re-running generators), while structural or `.csproj` changes trigger a reload.
+The server speaks MCP over stdio and operates on one .NET **solution** (or project). By default
+it **discovers** the target from the session — it walks up from the working directory the client
+launched it in (preferring a `.sln`/`.slnx`, else a `.csproj`) — so it follows whatever folder you
+are working in, like a language server. You can override discovery with `--project <path>` or the
+`SHARPSEEK_PROJECT` environment variable, and switch targets at runtime with the `activate_project`
+tool. The solution is loaded once and kept warm; on-disk edits are picked up automatically —
+source/`.razor` changes are applied incrementally in memory (re-running generators), while
+structural or `.csproj`/`.sln` changes trigger a reload.
 
-```sh
-dotnet run --project src/SharpSeek.Server -- --project <path-to-csproj>
-```
-
-Example MCP client registration (e.g. an editor/agent `mcp.json`):
+Because it follows the session folder, a single **global** registration works across all your
+.NET repos (and the server instructions tell agents to use it only for .NET/C# projects):
 
 ```json
 {
   "mcpServers": {
     "sharpseek": {
-      "command": "dotnet",
-      "args": ["run", "--project", "src/SharpSeek.Server", "--", "--project", "<path-to-csproj>"]
+      "command": "D:\\Dev\\SharpSeek\\artifacts\\server\\SharpSeek.Server.exe"
     }
   }
 }
 ```
+
+Register it globally in Claude Code with:
+
+```sh
+claude mcp add sharpseek -s user -- "D:\Dev\SharpSeek\artifacts\server\SharpSeek.Server.exe"
+```
+
+(Add `--project <path>` after the executable to pin a fixed solution instead of following the
+folder.) Build the executable first with `dotnet publish src/SharpSeek.Server -c Release -o artifacts/server`.
 
 ### Logging
 
@@ -114,9 +125,10 @@ Tools:
 | `get_diagnostics` | Compiler errors/warnings for the project or a file, filterable by severity. |
 | `call_hierarchy` | Incoming callers (incl. from generated code) and outgoing calls of a method. |
 | `find_overrides` | Members that override a member, and the members it overrides. |
-| `project_overview` | Project name, language, document/generated counts, references. |
+| `solution_overview` | The solution's projects with names, languages, document/generated counts, references. |
 | `get_generated_document` | The C# a generator produced for a file (e.g. Razor `BuildRenderTree`). |
 | `list_generators` | Which source generators ran and how many documents each produced. |
+| `activate_project` | Switch the analysed solution/project to a given path or directory. |
 
 ## Testing
 

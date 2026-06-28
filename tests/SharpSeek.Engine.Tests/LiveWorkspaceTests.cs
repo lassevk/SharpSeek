@@ -23,7 +23,7 @@ public class LiveWorkspaceTests
 
         // The type does not exist yet.
         IReadOnlyList<SymbolMatch> before =
-            await explorer.SearchSymbolsAsync(workspace.Project, "FreshlyAddedType", 10, cancellationToken);
+            await explorer.SearchSymbolsAsync(workspace.Solution, "FreshlyAddedType", 10, cancellationToken);
         Assert.Empty(before);
 
         // Apply an in-memory edit (disk is not modified) and confirm the workspace reflects it.
@@ -33,7 +33,7 @@ public class LiveWorkspaceTests
         Assert.True(workspace.TryApplyTextChange(greetingPath, edited));
 
         IReadOnlyList<SymbolMatch> after =
-            await explorer.SearchSymbolsAsync(workspace.Project, "FreshlyAddedType", 10, cancellationToken);
+            await explorer.SearchSymbolsAsync(workspace.Solution, "FreshlyAddedType", 10, cancellationToken);
         Assert.Contains(after, match => match.Display.Contains("FreshlyAddedType"));
     }
 }

@@ -35,12 +35,12 @@ public sealed class SymbolNavigator
 {
     /// <summary>Returns the declaration location(s) of every symbol matching the name.</summary>
     public async Task<IReadOnlyList<SymbolLocations>> GoToDefinitionAsync(
-        Project project,
+        Solution solution,
         string symbolName,
         CancellationToken cancellationToken = default)
     {
-        HashSet<string> handwrittenPaths = LocationDescriptor.HandwrittenPaths(project);
-        IEnumerable<ISymbol> symbols = await ResolveAsync(project, symbolName, cancellationToken)
+        HashSet<string> handwrittenPaths = LocationDescriptor.HandwrittenPaths(solution);
+        IEnumerable<ISymbol> symbols = await ResolveAsync(solution, symbolName, cancellationToken)
             .ConfigureAwait(false);
 
         return
@@ -56,13 +56,12 @@ public sealed class SymbolNavigator
     /// implementing types for an interface, or the implementing members for an interface member).
     /// </summary>
     public async Task<IReadOnlyList<SymbolLocations>> FindImplementationsAsync(
-        Project project,
+        Solution solution,
         string symbolName,
         CancellationToken cancellationToken = default)
     {
-        HashSet<string> handwrittenPaths = LocationDescriptor.HandwrittenPaths(project);
-        Solution solution = project.Solution;
-        IEnumerable<ISymbol> symbols = await ResolveAsync(project, symbolName, cancellationToken)
+        HashSet<string> handwrittenPaths = LocationDescriptor.HandwrittenPaths(solution);
+        IEnumerable<ISymbol> symbols = await ResolveAsync(solution, symbolName, cancellationToken)
             .ConfigureAwait(false);
 
         Dictionary<string, SymbolLocations> byDisplay = new(StringComparer.Ordinal);
@@ -86,13 +85,12 @@ public sealed class SymbolNavigator
 
     /// <summary>Returns the base types and derived types of every type matching the name.</summary>
     public async Task<IReadOnlyList<TypeHierarchy>> TypeHierarchyAsync(
-        Project project,
+        Solution solution,
         string typeName,
         CancellationToken cancellationToken = default)
     {
-        HashSet<string> handwrittenPaths = LocationDescriptor.HandwrittenPaths(project);
-        Solution solution = project.Solution;
-        IEnumerable<ISymbol> symbols = await ResolveAsync(project, typeName, cancellationToken)
+        HashSet<string> handwrittenPaths = LocationDescriptor.HandwrittenPaths(solution);
+        IEnumerable<ISymbol> symbols = await ResolveAsync(solution, typeName, cancellationToken)
             .ConfigureAwait(false);
 
         List<TypeHierarchy> results = [];
@@ -141,13 +139,12 @@ public sealed class SymbolNavigator
     /// overrides (the override chain).
     /// </summary>
     public async Task<IReadOnlyList<OverrideHierarchy>> FindOverridesAsync(
-        Project project,
+        Solution solution,
         string symbolName,
         CancellationToken cancellationToken = default)
     {
-        HashSet<string> handwrittenPaths = LocationDescriptor.HandwrittenPaths(project);
-        Solution solution = project.Solution;
-        IEnumerable<ISymbol> symbols = await ResolveAsync(project, symbolName, cancellationToken)
+        HashSet<string> handwrittenPaths = LocationDescriptor.HandwrittenPaths(solution);
+        IEnumerable<ISymbol> symbols = await ResolveAsync(solution, symbolName, cancellationToken)
             .ConfigureAwait(false);
 
         List<OverrideHierarchy> results = [];
@@ -189,10 +186,10 @@ public sealed class SymbolNavigator
     };
 
     private static Task<IEnumerable<ISymbol>> ResolveAsync(
-        Project project,
+        Solution solution,
         string symbolName,
         CancellationToken cancellationToken) =>
-        SymbolFinder.FindSourceDeclarationsAsync(project, symbolName, ignoreCase: false, cancellationToken);
+        SymbolFinder.FindSourceDeclarationsAsync(solution, symbolName, ignoreCase: false, cancellationToken);
 
     private static TypeReference ToTypeReference(INamedTypeSymbol type, HashSet<string> handwrittenPaths)
     {

@@ -9,7 +9,7 @@ using SharpSeek.Engine;
 namespace SharpSeek.Server;
 
 /// <summary>
-/// MCP tools that analyse the loaded project as a whole.
+/// MCP tools that analyse the loaded .NET solution as a whole, plus project activation.
 /// </summary>
 [McpServerToolType]
 internal sealed class CodeAnalysisTools
@@ -17,18 +17,18 @@ internal sealed class CodeAnalysisTools
     [McpServerTool(Name = "find_unused_symbols")]
     [Description(
         "Find private members (methods, properties, fields, events) with no references anywhere " +
-        "in the project — i.e. dead code. References inside source-generated code are counted, so " +
+        "in the solution - i.e. dead code. References inside source-generated code are counted, so " +
         "a private member used only from generated code (e.g. a Blazor @onclick handler) is NOT " +
-        "reported, unlike generic tools. Scans the whole project, so it can be slow on large " +
-        "projects. Note: members reached only via reflection or serialization may be reported.")]
+        "reported, unlike generic tools. Scans the whole solution, so it can be slow on large " +
+        "solutions. Note: members reached only via reflection or serialization may be reported.")]
     public static async Task<IReadOnlyList<UnusedSymbolDto>> FindUnusedSymbolsAsync(
         ProjectSession session,
         DeadCodeFinder finder,
         CancellationToken cancellationToken)
     {
-        Project project = await session.GetProjectAsync(cancellationToken);
+        Solution solution = await session.GetSolutionAsync(cancellationToken);
         IReadOnlyList<UnusedSymbol> results =
-            await finder.FindUnusedPrivateSymbolsAsync(project, cancellationToken);
+            await finder.FindUnusedPrivateSymbolsAsync(solution, cancellationToken);
 
         return [.. results.Select(UnusedSymbolDto.From)];
     }
@@ -45,48 +45,48 @@ internal sealed class CodeAnalysisTools
         string query,
         CancellationToken cancellationToken)
     {
-        Project project = await session.GetProjectAsync(cancellationToken);
+        Solution solution = await session.GetSolutionAsync(cancellationToken);
         IReadOnlyList<GeneratedDocumentInfo> results =
-            await inspector.GetGeneratedDocumentsAsync(project, query, cancellationToken);
+            await inspector.GetGeneratedDocumentsAsync(solution, query, cancellationToken);
 
         return [.. results.Select(GeneratedDocumentDto.From)];
     }
 
     [McpServerTool(Name = "list_generators")]
     [Description(
-        "List the source generators that ran for the project and how many documents each " +
+        "List the source generators that ran across the solution and how many documents each " +
         "produced. Useful for confirming the Razor generator is active.")]
     public static async Task<IReadOnlyList<GeneratorDto>> ListGeneratorsAsync(
         ProjectSession session,
         ProjectInspector inspector,
         CancellationToken cancellationToken)
     {
-        Project project = await session.GetProjectAsync(cancellationToken);
+        Solution solution = await session.GetSolutionAsync(cancellationToken);
         IReadOnlyList<GeneratorInfo> results =
-            await inspector.ListGeneratorsAsync(project, cancellationToken);
+            await inspector.ListGeneratorsAsync(solution, cancellationToken);
 
         return [.. results.Select(GeneratorDto.From)];
     }
 
-    [McpServerTool(Name = "project_overview")]
+    [McpServerTool(Name = "solution_overview")]
     [Description(
-        "Get high-level information about the loaded project: name, assembly name, language, " +
-        "file path, document counts (hand-written, additional, generated), metadata reference " +
-        "count, and project references.")]
-    public static async Task<ProjectOverviewDto> ProjectOverviewAsync(
+        "Get high-level information about the loaded solution: its file path and, for each " +
+        "project, name, assembly name, language, document counts (hand-written, additional, " +
+        "generated), metadata reference count, and project references.")]
+    public static async Task<SolutionOverviewDto> SolutionOverviewAsync(
         ProjectSession session,
         ProjectInspector inspector,
         CancellationToken cancellationToken)
     {
-        Project project = await session.GetProjectAsync(cancellationToken);
-        ProjectOverview overview = await inspector.GetOverviewAsync(project, cancellationToken);
+        Solution solution = await session.GetSolutionAsync(cancellationToken);
+        SolutionOverview overview = await inspector.GetOverviewAsync(solution, cancellationToken);
 
-        return ProjectOverviewDto.From(overview);
+        return SolutionOverviewDto.From(overview);
     }
 
     [McpServerTool(Name = "get_diagnostics")]
     [Description(
-        "Get compiler diagnostics (errors, warnings) for the project, or for a single file when " +
+        "Get compiler diagnostics (errors, warnings) for the solution, or for a single file when " +
         "filePath is given. minimumSeverity is one of error, warning (default), info, hidden. " +
         "Diagnostics in generated code are mapped back to their original location.")]
     public static async Task<IReadOnlyList<DiagnosticDto>> GetDiagnosticsAsync(
@@ -98,10 +98,24 @@ internal sealed class CodeAnalysisTools
         string? minimumSeverity = null,
         CancellationToken cancellationToken = default)
     {
-        Project project = await session.GetProjectAsync(cancellationToken);
+        Solution solution = await session.GetSolutionAsync(cancellationToken);
         IReadOnlyList<DiagnosticInfo> results =
-            await reader.GetDiagnosticsAsync(project, filePath, minimumSeverity, cancellationToken);
+            await reader.GetDiagnosticsAsync(solution, filePath, minimumSeverity, cancellationToken);
 
         return [.. results.Select(DiagnosticDto.From)];
+    }
+
+    [McpServerTool(Name = "activate_project")]
+    [Description(
+        "Switch the .NET solution or project this server analyses. Pass a path to a .sln/.slnx/" +
+        ".csproj file, or a directory (a solution or project will be discovered by walking up). " +
+        "Returns the loaded path.")]
+    public static async Task<string> ActivateProjectAsync(
+        ProjectSession session,
+        [Description("Path to a .sln/.slnx/.csproj file or a directory.")] string path,
+        CancellationToken cancellationToken)
+    {
+        string loaded = await session.ActivateAsync(path, cancellationToken);
+        return $"Activated: {loaded}";
     }
 }

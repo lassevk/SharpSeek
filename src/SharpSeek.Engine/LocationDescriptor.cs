@@ -10,15 +10,18 @@ namespace SharpSeek.Engine;
 /// </summary>
 internal static class LocationDescriptor
 {
-    /// <summary>Builds the set of hand-written document paths for a project.</summary>
-    public static HashSet<string> HandwrittenPaths(Project project)
+    /// <summary>Builds the set of hand-written document paths across the whole solution.</summary>
+    public static HashSet<string> HandwrittenPaths(Solution solution)
     {
         HashSet<string> paths = new(StringComparer.OrdinalIgnoreCase);
-        foreach (Document document in project.Documents)
+        foreach (Project project in solution.Projects)
         {
-            if (document.FilePath is not null)
+            foreach (Document document in project.Documents)
             {
-                paths.Add(document.FilePath);
+                if (document.FilePath is not null)
+                {
+                    paths.Add(document.FilePath);
+                }
             }
         }
 

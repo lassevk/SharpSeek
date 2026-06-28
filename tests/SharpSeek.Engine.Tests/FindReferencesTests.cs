@@ -18,7 +18,7 @@ public class FindReferencesTests
 
         ReferenceFinder finder = new();
         IReadOnlyList<SymbolReferences> results =
-            await finder.FindReferencesAsync(_fixture.Project, "ShowPreviousYearAsync", cancellationToken);
+            await finder.FindReferencesAsync(_fixture.Solution, "ShowPreviousYearAsync", cancellationToken);
 
         SymbolReferences symbol = Assert.Single(results);
 

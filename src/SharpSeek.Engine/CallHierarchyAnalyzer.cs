@@ -24,15 +24,14 @@ public sealed record CallHierarchy(
 public sealed class CallHierarchyAnalyzer
 {
     public async Task<IReadOnlyList<CallHierarchy>> AnalyzeAsync(
-        Project project,
+        Solution solution,
         string methodName,
         CancellationToken cancellationToken = default)
     {
-        HashSet<string> handwrittenPaths = LocationDescriptor.HandwrittenPaths(project);
-        Solution solution = project.Solution;
+        HashSet<string> handwrittenPaths = LocationDescriptor.HandwrittenPaths(solution);
 
         IEnumerable<ISymbol> symbols = await SymbolFinder
-            .FindSourceDeclarationsAsync(project, methodName, ignoreCase: false, cancellationToken)
+            .FindSourceDeclarationsAsync(solution, methodName, ignoreCase: false, cancellationToken)
             .ConfigureAwait(false);
 
         List<CallHierarchy> results = [];
@@ -42,7 +41,7 @@ public sealed class CallHierarchyAnalyzer
                 await FindIncomingAsync(method, solution, handwrittenPaths, cancellationToken)
                     .ConfigureAwait(false);
             IReadOnlyList<OutgoingCall> outgoing =
-                await FindOutgoingAsync(method, project, handwrittenPaths, cancellationToken)
+                await FindOutgoingAsync(method, solution, handwrittenPaths, cancellationToken)
                     .ConfigureAwait(false);
 
             results.Add(new CallHierarchy(method.ToDisplayString(), incoming, outgoing));
@@ -84,7 +83,7 @@ public sealed class CallHierarchyAnalyzer
 
     private static async Task<IReadOnlyList<OutgoingCall>> FindOutgoingAsync(
         IMethodSymbol method,
-        Project project,
+        Solution solution,
         HashSet<string> handwrittenPaths,
         CancellationToken cancellationToken)
     {
@@ -92,7 +91,7 @@ public sealed class CallHierarchyAnalyzer
         foreach (SyntaxReference reference in method.DeclaringSyntaxReferences)
         {
             SyntaxNode node = await reference.GetSyntaxAsync(cancellationToken).ConfigureAwait(false);
-            Document? document = project.GetDocument(node.SyntaxTree);
+            Document? document = solution.GetDocument(node.SyntaxTree);
             if (document is null)
             {
                 continue;

@@ -18,7 +18,7 @@ public class NavigationTests
         SymbolNavigator navigator = new();
 
         IReadOnlyList<SymbolLocations> results =
-            await navigator.GoToDefinitionAsync(_fixture.Project, "EnglishGreeter", cancellationToken);
+            await navigator.GoToDefinitionAsync(_fixture.Solution, "EnglishGreeter", cancellationToken);
 
         SymbolLocations symbol = Assert.Single(results);
         ReferenceLocationInfo location = Assert.Single(symbol.Locations);
@@ -33,7 +33,7 @@ public class NavigationTests
         SymbolNavigator navigator = new();
 
         IReadOnlyList<SymbolLocations> results =
-            await navigator.FindImplementationsAsync(_fixture.Project, "IGreeter", cancellationToken);
+            await navigator.FindImplementationsAsync(_fixture.Solution, "IGreeter", cancellationToken);
 
         Assert.Contains(results, result => result.SymbolDisplay.Contains("EnglishGreeter"));
     }
@@ -45,7 +45,7 @@ public class NavigationTests
         SymbolNavigator navigator = new();
 
         IReadOnlyList<TypeHierarchy> results =
-            await navigator.TypeHierarchyAsync(_fixture.Project, "Dog", cancellationToken);
+            await navigator.TypeHierarchyAsync(_fixture.Solution, "Dog", cancellationToken);
 
         TypeHierarchy hierarchy = Assert.Single(results);
         Assert.Contains(hierarchy.BaseTypes, baseType => baseType.Display.Contains("Animal"));

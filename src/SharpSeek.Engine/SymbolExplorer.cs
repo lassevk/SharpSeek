@@ -21,25 +21,25 @@ public sealed record SymbolDetails(
 public sealed record OutlineItem(string Display, string Kind, int Line);
 
 /// <summary>
-/// Read-only exploration of a loaded project: workspace symbol search, symbol details, and a
-/// per-document outline.
+/// Read-only exploration of a loaded solution: workspace symbol search, symbol details, a
+/// per-document outline, and literal search.
 /// </summary>
 public sealed class SymbolExplorer
 {
     /// <summary>
-    /// Searches the project's source-declared symbols by name pattern (supports substring and
+    /// Searches the solution's source-declared symbols by name pattern (supports substring and
     /// camel-case matching), returning up to <paramref name="max"/> results.
     /// </summary>
     public async Task<IReadOnlyList<SymbolMatch>> SearchSymbolsAsync(
-        Project project,
+        Solution solution,
         string query,
         int max = 50,
         CancellationToken cancellationToken = default)
     {
-        HashSet<string> handwrittenPaths = LocationDescriptor.HandwrittenPaths(project);
+        HashSet<string> handwrittenPaths = LocationDescriptor.HandwrittenPaths(solution);
         IEnumerable<ISymbol> symbols = await SymbolFinder
             .FindSourceDeclarationsWithPatternAsync(
-                project, query, SymbolFilter.TypeAndMember, cancellationToken)
+                solution, query, SymbolFilter.TypeAndMember, cancellationToken)
             .ConfigureAwait(false);
 
         return
@@ -62,13 +62,13 @@ public sealed class SymbolExplorer
 
     /// <summary>Returns details (kind, accessibility, XML doc, locations) for matching symbols.</summary>
     public async Task<IReadOnlyList<SymbolDetails>> GetSymbolInfoAsync(
-        Project project,
+        Solution solution,
         string symbolName,
         CancellationToken cancellationToken = default)
     {
-        HashSet<string> handwrittenPaths = LocationDescriptor.HandwrittenPaths(project);
+        HashSet<string> handwrittenPaths = LocationDescriptor.HandwrittenPaths(solution);
         IEnumerable<ISymbol> symbols = await SymbolFinder
-            .FindSourceDeclarationsAsync(project, symbolName, ignoreCase: false, cancellationToken)
+            .FindSourceDeclarationsAsync(solution, symbolName, ignoreCase: false, cancellationToken)
             .ConfigureAwait(false);
 
         return [.. symbols.Select(symbol => BuildDetails(symbol, handwrittenPaths, cancellationToken))];
@@ -76,17 +76,17 @@ public sealed class SymbolExplorer
 
     /// <summary>
     /// Resolves the symbol referenced or declared at a position (1-based line and column) in a C#
-    /// source file. Returns an empty list if the file is not a C# document in the project or no
+    /// source file. Returns an empty list if the file is not a C# document in the solution or no
     /// symbol is found there.
     /// </summary>
     public async Task<IReadOnlyList<SymbolDetails>> ResolveSymbolAtAsync(
-        Project project,
+        Solution solution,
         string filePath,
         int line,
         int column,
         CancellationToken cancellationToken = default)
     {
-        Document? document = FindDocument(project, filePath);
+        Document? document = FindDocument(solution, filePath);
         if (document is null)
         {
             return [];
@@ -108,7 +108,7 @@ public sealed class SymbolExplorer
             return [];
         }
 
-        HashSet<string> handwrittenPaths = LocationDescriptor.HandwrittenPaths(project);
+        HashSet<string> handwrittenPaths = LocationDescriptor.HandwrittenPaths(solution);
         SyntaxToken token = root.FindToken(position);
         for (SyntaxNode? node = token.Parent; node is not null; node = node.Parent)
         {
@@ -143,11 +143,11 @@ public sealed class SymbolExplorer
     /// (absolute, or any suffix of the document's path).
     /// </summary>
     public async Task<IReadOnlyList<OutlineItem>> DocumentOutlineAsync(
-        Project project,
+        Solution solution,
         string filePath,
         CancellationToken cancellationToken = default)
     {
-        Document? document = FindDocument(project, filePath);
+        Document? document = FindDocument(solution, filePath);
         if (document is null)
         {
             return [];
@@ -188,32 +188,35 @@ public sealed class SymbolExplorer
     }
 
     /// <summary>
-    /// Finds occurrences of a literal value (string, number, or char) across the project,
+    /// Finds occurrences of a literal value (string, number, or char) across the solution,
     /// including literals emitted into source-generated code, mapped back to their source.
     /// </summary>
     public async Task<IReadOnlyList<ReferenceLocationInfo>> FindLiteralUsagesAsync(
-        Project project,
+        Solution solution,
         string value,
         CancellationToken cancellationToken = default)
     {
-        Compilation? compilation = await project.GetCompilationAsync(cancellationToken)
-            .ConfigureAwait(false);
-        if (compilation is null)
-        {
-            return [];
-        }
-
-        HashSet<string> handwrittenPaths = LocationDescriptor.HandwrittenPaths(project);
+        HashSet<string> handwrittenPaths = LocationDescriptor.HandwrittenPaths(solution);
         List<ReferenceLocationInfo> results = [];
-        foreach (SyntaxTree tree in compilation.SyntaxTrees)
+        foreach (Project project in solution.Projects)
         {
-            SyntaxNode root = await tree.GetRootAsync(cancellationToken).ConfigureAwait(false);
-            foreach (LiteralExpressionSyntax literal in root.DescendantNodes().OfType<LiteralExpressionSyntax>())
+            Compilation? compilation = await project.GetCompilationAsync(cancellationToken)
+                .ConfigureAwait(false);
+            if (compilation is null)
             {
-                if (string.Equals(literal.Token.ValueText, value, StringComparison.Ordinal)
-                    || string.Equals(literal.Token.Text, value, StringComparison.Ordinal))
+                continue;
+            }
+
+            foreach (SyntaxTree tree in compilation.SyntaxTrees)
+            {
+                SyntaxNode root = await tree.GetRootAsync(cancellationToken).ConfigureAwait(false);
+                foreach (LiteralExpressionSyntax literal in root.DescendantNodes().OfType<LiteralExpressionSyntax>())
                 {
-                    results.Add(LocationDescriptor.Describe(tree, literal.Span, handwrittenPaths));
+                    if (string.Equals(literal.Token.ValueText, value, StringComparison.Ordinal)
+                        || string.Equals(literal.Token.Text, value, StringComparison.Ordinal))
+                    {
+                        results.Add(LocationDescriptor.Describe(tree, literal.Span, handwrittenPaths));
+                    }
                 }
             }
         }
@@ -221,13 +224,23 @@ public sealed class SymbolExplorer
         return results;
     }
 
-    private static Document? FindDocument(Project project, string filePath)
+    private static Document? FindDocument(Solution solution, string filePath)
     {
         string normalized = Normalize(filePath);
-        return project.Documents.FirstOrDefault(document =>
-            document.FilePath is { } path
-            && (string.Equals(Normalize(path), normalized, StringComparison.OrdinalIgnoreCase)
-                || Normalize(path).EndsWith(normalized, StringComparison.OrdinalIgnoreCase)));
+        foreach (Project project in solution.Projects)
+        {
+            foreach (Document document in project.Documents)
+            {
+                if (document.FilePath is { } path
+                    && (string.Equals(Normalize(path), normalized, StringComparison.OrdinalIgnoreCase)
+                        || Normalize(path).EndsWith(normalized, StringComparison.OrdinalIgnoreCase)))
+                {
+                    return document;
+                }
+            }
+        }
+
+        return null;
     }
 
     private static string Normalize(string path) => path.Replace('\\', '/');

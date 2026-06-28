@@ -18,7 +18,7 @@ public class DiagnosticReaderTests
         DiagnosticReader reader = new();
 
         IReadOnlyList<DiagnosticInfo> diagnostics =
-            await reader.GetDiagnosticsAsync(_fixture.Project, cancellationToken: cancellationToken);
+            await reader.GetDiagnosticsAsync(_fixture.Solution, cancellationToken: cancellationToken);
 
         // The fixture intentionally contains a CS0219 (assigned-but-never-used) warning.
         DiagnosticInfo warning = Assert.Single(diagnostics, diagnostic => diagnostic.Id == "CS0219");
@@ -34,7 +34,7 @@ public class DiagnosticReaderTests
         DiagnosticReader reader = new();
 
         IReadOnlyList<DiagnosticInfo> diagnostics = await reader.GetDiagnosticsAsync(
-            _fixture.Project, "Domain/DiagnosticsSample.cs", "warning", cancellationToken);
+            _fixture.Solution, "Domain/DiagnosticsSample.cs", "warning", cancellationToken);
 
         Assert.NotEmpty(diagnostics);
         Assert.All(diagnostics, diagnostic =>

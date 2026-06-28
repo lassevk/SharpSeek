@@ -14,6 +14,8 @@ public sealed class SampleBlazorAppFixture : IAsyncLifetime
 {
     public Project Project { get; private set; } = null!;
 
+    public Solution Solution => Project.Solution;
+
     public async ValueTask InitializeAsync()
     {
         WorkspaceLoader loader = new();

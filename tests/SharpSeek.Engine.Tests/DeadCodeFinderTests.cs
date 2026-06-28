@@ -18,7 +18,7 @@ public class DeadCodeFinderTests
         DeadCodeFinder finder = new();
 
         IReadOnlyList<UnusedSymbol> unused =
-            await finder.FindUnusedPrivateSymbolsAsync(_fixture.Project, cancellationToken);
+            await finder.FindUnusedPrivateSymbolsAsync(_fixture.Solution, cancellationToken);
 
         // The genuinely unused private method is reported.
         Assert.Contains(unused, symbol => symbol.Display.Contains("NeverCalled"));

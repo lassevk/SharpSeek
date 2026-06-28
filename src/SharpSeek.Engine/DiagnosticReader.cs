@@ -21,50 +21,53 @@ public sealed class DiagnosticReader
     /// Returns compiler diagnostics at or above <paramref name="minimumSeverity"/> (default
     /// <c>Warning</c>), optionally restricted to a single file.
     /// </summary>
-    /// <param name="project">A loaded project.</param>
+    /// <param name="solution">A loaded solution.</param>
     /// <param name="filePath">When set, only diagnostics in this file (matched by path suffix).</param>
     /// <param name="minimumSeverity">One of <c>error</c>, <c>warning</c>, <c>info</c>, <c>hidden</c>.</param>
     /// <param name="cancellationToken">Token used to cancel the work.</param>
     public async Task<IReadOnlyList<DiagnosticInfo>> GetDiagnosticsAsync(
-        Project project,
+        Solution solution,
         string? filePath = null,
         string? minimumSeverity = null,
         CancellationToken cancellationToken = default)
     {
-        Compilation? compilation = await project.GetCompilationAsync(cancellationToken)
-            .ConfigureAwait(false);
-        if (compilation is null)
-        {
-            return [];
-        }
-
-        HashSet<string> handwrittenPaths = LocationDescriptor.HandwrittenPaths(project);
+        HashSet<string> handwrittenPaths = LocationDescriptor.HandwrittenPaths(solution);
         DiagnosticSeverity minimum = ParseSeverity(minimumSeverity);
         string? fileFilter = filePath is null ? null : filePath.Replace('\\', '/');
 
         List<(Diagnostic Diagnostic, ReferenceLocationInfo? Location)> matched = [];
-        foreach (Diagnostic diagnostic in compilation.GetDiagnostics(cancellationToken))
+        foreach (Project project in solution.Projects)
         {
-            if (diagnostic.Severity < minimum)
+            Compilation? compilation = await project.GetCompilationAsync(cancellationToken)
+                .ConfigureAwait(false);
+            if (compilation is null)
             {
                 continue;
             }
 
-            ReferenceLocationInfo? location = null;
-            if (diagnostic.Location is { IsInSource: true, SourceTree: { } tree })
+            foreach (Diagnostic diagnostic in compilation.GetDiagnostics(cancellationToken))
             {
-                location = LocationDescriptor.Describe(tree, diagnostic.Location.SourceSpan, handwrittenPaths);
-            }
+                if (diagnostic.Severity < minimum)
+                {
+                    continue;
+                }
 
-            if (fileFilter is not null
-                && (location is null
-                    || !location.FilePath.Replace('\\', '/')
-                        .EndsWith(fileFilter, StringComparison.OrdinalIgnoreCase)))
-            {
-                continue;
-            }
+                ReferenceLocationInfo? location = null;
+                if (diagnostic.Location is { IsInSource: true, SourceTree: { } tree })
+                {
+                    location = LocationDescriptor.Describe(tree, diagnostic.Location.SourceSpan, handwrittenPaths);
+                }
 
-            matched.Add((diagnostic, location));
+                if (fileFilter is not null
+                    && (location is null
+                        || !location.FilePath.Replace('\\', '/')
+                            .EndsWith(fileFilter, StringComparison.OrdinalIgnoreCase)))
+                {
+                    continue;
+                }
+
+                matched.Add((diagnostic, location));
+            }
         }
 
         return

@@ -17,12 +17,13 @@ public class ProjectInspectorTests
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         ProjectInspector inspector = new();
 
-        ProjectOverview overview = await inspector.GetOverviewAsync(_fixture.Project, cancellationToken);
+        SolutionOverview overview = await inspector.GetOverviewAsync(_fixture.Solution, cancellationToken);
 
-        Assert.Equal("SampleBlazorApp", overview.Name);
-        Assert.Equal("C#", overview.Language);
-        Assert.True(overview.DocumentCount > 0);
+        ProjectOverview project = Assert.Single(overview.Projects);
+        Assert.Equal("SampleBlazorApp", project.Name);
+        Assert.Equal("C#", project.Language);
+        Assert.True(project.DocumentCount > 0);
         // The Razor generator produces at least the Calendar component.
-        Assert.True(overview.GeneratedDocumentCount > 0);
+        Assert.True(project.GeneratedDocumentCount > 0);
     }
 }

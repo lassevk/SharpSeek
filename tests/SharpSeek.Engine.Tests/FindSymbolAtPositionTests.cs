@@ -20,7 +20,7 @@ public class FindSymbolAtPositionTests
         // Greeting.cs line 9: "public class EnglishGreeter : IGreeter" — column 16 is inside the
         // type name.
         IReadOnlyList<SymbolDetails> results = await explorer.ResolveSymbolAtAsync(
-            _fixture.Project, "Domain/Greeting.cs", line: 9, column: 16, cancellationToken);
+            _fixture.Solution, "Domain/Greeting.cs", line: 9, column: 16, cancellationToken);
 
         SymbolDetails info = Assert.Single(results);
         Assert.Contains("EnglishGreeter", info.Display);

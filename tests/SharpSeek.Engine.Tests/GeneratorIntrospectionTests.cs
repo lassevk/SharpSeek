@@ -18,7 +18,7 @@ public class GeneratorIntrospectionTests
         ProjectInspector inspector = new();
 
         IReadOnlyList<GeneratedDocumentInfo> documents =
-            await inspector.GetGeneratedDocumentsAsync(_fixture.Project, "Calendar.razor", cancellationToken);
+            await inspector.GetGeneratedDocumentsAsync(_fixture.Solution, "Calendar.razor", cancellationToken);
 
         GeneratedDocumentInfo document = Assert.Single(documents);
         Assert.Contains("BuildRenderTree", document.Text);
@@ -32,7 +32,7 @@ public class GeneratorIntrospectionTests
         ProjectInspector inspector = new();
 
         IReadOnlyList<GeneratorInfo> generators =
-            await inspector.ListGeneratorsAsync(_fixture.Project, cancellationToken);
+            await inspector.ListGeneratorsAsync(_fixture.Solution, cancellationToken);
 
         Assert.Contains(generators, generator =>
             generator.Assembly.Contains("Razor") && generator.GeneratorCount > 0);

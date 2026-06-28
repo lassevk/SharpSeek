@@ -55,24 +55,23 @@ public sealed record SymbolReferences(
 public sealed class ReferenceFinder
 {
     /// <summary>
-    /// Resolves every source-declared symbol matching <paramref name="symbolName"/> in the
-    /// project and finds its references across the whole solution, including generated documents.
+    /// Resolves every source-declared symbol matching <paramref name="symbolName"/> across the
+    /// solution and finds its references, including references inside generated documents.
     /// </summary>
-    /// <param name="project">A project previously loaded via <see cref="WorkspaceLoader"/>.</param>
+    /// <param name="solution">A solution previously loaded via <see cref="LiveWorkspace"/>.</param>
     /// <param name="symbolName">The simple (unqualified) symbol name to resolve.</param>
     /// <param name="cancellationToken">Token used to cancel the search.</param>
     public async Task<IReadOnlyList<SymbolReferences>> FindReferencesAsync(
-        Project project,
+        Solution solution,
         string symbolName,
         CancellationToken cancellationToken = default)
     {
-        HashSet<string> handwrittenPaths = LocationDescriptor.HandwrittenPaths(project);
+        HashSet<string> handwrittenPaths = LocationDescriptor.HandwrittenPaths(solution);
 
         IEnumerable<ISymbol> declarations = await SymbolFinder
-            .FindSourceDeclarationsAsync(project, symbolName, ignoreCase: false, cancellationToken)
+            .FindSourceDeclarationsAsync(solution, symbolName, ignoreCase: false, cancellationToken)
             .ConfigureAwait(false);
 
-        Solution solution = project.Solution;
         List<SymbolReferences> results = [];
 
         foreach (ISymbol symbol in declarations)

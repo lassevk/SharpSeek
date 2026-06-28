@@ -38,7 +38,7 @@ internal static class Diagnostics
             $"Loaded: {loadResult.Project.Name} " +
             $"({loadResult.Project.Documents.Count()} documents, {generated.Count()} generated)");
 
-        string? generatorProblem = GeneratorHealthCheck.DetectRazorGeneratorSkew(loadResult.Project);
+        string? generatorProblem = GeneratorHealthCheck.DetectRazorGeneratorSkew(loadResult.Project.Solution);
         if (generatorProblem is not null)
         {
             Console.WriteLine($"\nWARNING: {generatorProblem}");
@@ -47,7 +47,7 @@ internal static class Diagnostics
         Console.WriteLine($"\nFinding references to '{symbolName}'...\n");
         ReferenceFinder finder = new();
         IReadOnlyList<SymbolReferences> results =
-            await finder.FindReferencesAsync(loadResult.Project, symbolName);
+            await finder.FindReferencesAsync(loadResult.Project.Solution, symbolName);
 
         if (results.Count == 0)
         {

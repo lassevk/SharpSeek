@@ -18,7 +18,7 @@ public class ExplorationTests
         SymbolExplorer explorer = new();
 
         IReadOnlyList<SymbolMatch> results =
-            await explorer.SearchSymbolsAsync(_fixture.Project, "Greeter", 50, cancellationToken);
+            await explorer.SearchSymbolsAsync(_fixture.Solution, "Greeter", 50, cancellationToken);
 
         Assert.Contains(results, match => match.Display.Contains("EnglishGreeter"));
     }
@@ -30,7 +30,7 @@ public class ExplorationTests
         SymbolExplorer explorer = new();
 
         IReadOnlyList<SymbolDetails> results =
-            await explorer.GetSymbolInfoAsync(_fixture.Project, "EnglishGreeter", cancellationToken);
+            await explorer.GetSymbolInfoAsync(_fixture.Solution, "EnglishGreeter", cancellationToken);
 
         SymbolDetails info = Assert.Single(results);
         Assert.Equal("NamedType", info.Kind);
@@ -46,7 +46,7 @@ public class ExplorationTests
         SymbolExplorer explorer = new();
 
         IReadOnlyList<OutlineItem> items =
-            await explorer.DocumentOutlineAsync(_fixture.Project, "Domain/Greeting.cs", cancellationToken);
+            await explorer.DocumentOutlineAsync(_fixture.Solution, "Domain/Greeting.cs", cancellationToken);
 
         Assert.Contains(items, item => item.Display.Contains("IGreeter"));
         Assert.Contains(items, item => item.Display.Contains("EnglishGreeter"));

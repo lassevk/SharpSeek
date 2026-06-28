@@ -9,14 +9,14 @@ using SharpSeek.Engine;
 namespace SharpSeek.Server;
 
 /// <summary>
-/// MCP tools for navigating the loaded .NET project.
+/// MCP tools for navigating the loaded .NET solution.
 /// </summary>
 [McpServerToolType]
 internal sealed class CodeNavigationTools
 {
     [McpServerTool(Name = "find_references")]
     [Description(
-        "Find all references to a C# symbol by its name across the loaded project, including " +
+        "Find all references to a C# symbol by its name across the loaded solution, including " +
         "references that live inside source-generated code (for example a Blazor @onclick " +
         "handler wired up in generated BuildRenderTree code). Each reference is mapped back to " +
         "its original source location and tagged as handwritten or generated.")]
@@ -27,9 +27,9 @@ internal sealed class CodeNavigationTools
         string symbolName,
         CancellationToken cancellationToken)
     {
-        Project project = await session.GetProjectAsync(cancellationToken);
+        Solution solution = await session.GetSolutionAsync(cancellationToken);
         IReadOnlyList<SymbolReferences> results =
-            await finder.FindReferencesAsync(project, symbolName, cancellationToken);
+            await finder.FindReferencesAsync(solution, symbolName, cancellationToken);
 
         return [.. results.Select(FindReferencesResult.From)];
     }
@@ -45,9 +45,9 @@ internal sealed class CodeNavigationTools
         string symbolName,
         CancellationToken cancellationToken)
     {
-        Project project = await session.GetProjectAsync(cancellationToken);
+        Solution solution = await session.GetSolutionAsync(cancellationToken);
         IReadOnlyList<SymbolLocations> results =
-            await navigator.GoToDefinitionAsync(project, symbolName, cancellationToken);
+            await navigator.GoToDefinitionAsync(solution, symbolName, cancellationToken);
 
         return [.. results.Select(SymbolLocationsResult.From)];
     }
@@ -64,9 +64,9 @@ internal sealed class CodeNavigationTools
         string symbolName,
         CancellationToken cancellationToken)
     {
-        Project project = await session.GetProjectAsync(cancellationToken);
+        Solution solution = await session.GetSolutionAsync(cancellationToken);
         IReadOnlyList<SymbolLocations> results =
-            await navigator.FindImplementationsAsync(project, symbolName, cancellationToken);
+            await navigator.FindImplementationsAsync(solution, symbolName, cancellationToken);
 
         return [.. results.Select(SymbolLocationsResult.From)];
     }
@@ -83,9 +83,9 @@ internal sealed class CodeNavigationTools
         string typeName,
         CancellationToken cancellationToken)
     {
-        Project project = await session.GetProjectAsync(cancellationToken);
+        Solution solution = await session.GetSolutionAsync(cancellationToken);
         IReadOnlyList<TypeHierarchy> results =
-            await navigator.TypeHierarchyAsync(project, typeName, cancellationToken);
+            await navigator.TypeHierarchyAsync(solution, typeName, cancellationToken);
 
         return [.. results.Select(TypeHierarchyResult.From)];
     }
@@ -102,9 +102,9 @@ internal sealed class CodeNavigationTools
         string symbolName,
         CancellationToken cancellationToken)
     {
-        Project project = await session.GetProjectAsync(cancellationToken);
+        Solution solution = await session.GetSolutionAsync(cancellationToken);
         IReadOnlyList<OverrideHierarchy> results =
-            await navigator.FindOverridesAsync(project, symbolName, cancellationToken);
+            await navigator.FindOverridesAsync(solution, symbolName, cancellationToken);
 
         return [.. results.Select(OverrideHierarchyResult.From)];
     }
@@ -121,9 +121,9 @@ internal sealed class CodeNavigationTools
         string methodName,
         CancellationToken cancellationToken)
     {
-        Project project = await session.GetProjectAsync(cancellationToken);
+        Solution solution = await session.GetSolutionAsync(cancellationToken);
         IReadOnlyList<CallHierarchy> results =
-            await analyzer.AnalyzeAsync(project, methodName, cancellationToken);
+            await analyzer.AnalyzeAsync(solution, methodName, cancellationToken);
 
         return [.. results.Select(CallHierarchyResult.From)];
     }
