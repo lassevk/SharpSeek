@@ -56,7 +56,9 @@ against an in-repo [fixture](#testing).
 ## Running as an MCP server
 
 The server speaks MCP over stdio. It operates on a single project, configured with `--project`
-or the `SHARPSEEK_PROJECT` environment variable; the project is loaded once and kept warm.
+or the `SHARPSEEK_PROJECT` environment variable. The project is loaded once and kept warm;
+on-disk edits are picked up automatically — source/`.razor` changes are applied incrementally
+in memory (re-running generators), while structural or `.csproj` changes trigger a reload.
 
 ```sh
 dotnet run --project src/SharpSeek.Server -- --project <path-to-csproj>
