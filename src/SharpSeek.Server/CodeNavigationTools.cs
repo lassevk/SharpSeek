@@ -90,6 +90,25 @@ internal sealed class CodeNavigationTools
         return [.. results.Select(TypeHierarchyResult.From)];
     }
 
+    [McpServerTool(Name = "find_overrides")]
+    [Description(
+        "Find the override relationships of a member (by name): the members that override it " +
+        "(down the hierarchy) and the members it overrides (up the hierarchy). Works for virtual/" +
+        "abstract/override methods, properties, and events.")]
+    public static async Task<IReadOnlyList<OverrideHierarchyResult>> FindOverridesAsync(
+        ProjectSession session,
+        SymbolNavigator navigator,
+        [Description("The simple (unqualified) name of the member, e.g. \"Speak\".")]
+        string symbolName,
+        CancellationToken cancellationToken)
+    {
+        Project project = await session.GetProjectAsync(cancellationToken);
+        IReadOnlyList<OverrideHierarchy> results =
+            await navigator.FindOverridesAsync(project, symbolName, cancellationToken);
+
+        return [.. results.Select(OverrideHierarchyResult.From)];
+    }
+
     [McpServerTool(Name = "call_hierarchy")]
     [Description(
         "Show the call hierarchy of a method (by name): incoming callers (who calls it, including " +

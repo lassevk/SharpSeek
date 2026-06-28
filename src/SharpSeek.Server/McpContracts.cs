@@ -33,6 +33,18 @@ internal sealed record TypeReferenceDto(string Type, LocationDto? Location)
         type.Location is null ? null : LocationDto.From(type.Location));
 }
 
+/// <summary>The MCP-facing override hierarchy of a member.</summary>
+internal sealed record OverrideHierarchyResult(
+    string Symbol,
+    IReadOnlyList<SymbolLocationsResult> OverriddenBy,
+    IReadOnlyList<SymbolLocationsResult> Overrides)
+{
+    public static OverrideHierarchyResult From(OverrideHierarchy hierarchy) => new(
+        hierarchy.SymbolDisplay,
+        [.. hierarchy.OverriddenBy.Select(SymbolLocationsResult.From)],
+        [.. hierarchy.Overrides.Select(SymbolLocationsResult.From)]);
+}
+
 /// <summary>The MCP-facing base/derived type hierarchy for a type.</summary>
 internal sealed record TypeHierarchyResult(
     string Type,

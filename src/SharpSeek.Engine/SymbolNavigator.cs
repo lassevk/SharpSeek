@@ -17,6 +17,15 @@ public sealed record TypeHierarchy(
     IReadOnlyList<TypeReference> BaseTypes,
     IReadOnlyList<TypeReference> DerivedTypes);
 
+/// <summary>The override relationships of a member.</summary>
+/// <param name="SymbolDisplay">The member.</param>
+/// <param name="OverriddenBy">Members that override it (down the hierarchy).</param>
+/// <param name="Overrides">Members it overrides (up the hierarchy).</param>
+public sealed record OverrideHierarchy(
+    string SymbolDisplay,
+    IReadOnlyList<SymbolLocations> OverriddenBy,
+    IReadOnlyList<SymbolLocations> Overrides);
+
 /// <summary>
 /// Navigation queries over a loaded project: go-to-definition, find-implementations, and type
 /// hierarchy. All resolve their target by symbol name and report locations consistently with
@@ -126,6 +135,58 @@ public sealed class SymbolNavigator
 
         return results;
     }
+
+    /// <summary>
+    /// Returns, for each member matching the name, the members that override it and the members it
+    /// overrides (the override chain).
+    /// </summary>
+    public async Task<IReadOnlyList<OverrideHierarchy>> FindOverridesAsync(
+        Project project,
+        string symbolName,
+        CancellationToken cancellationToken = default)
+    {
+        HashSet<string> handwrittenPaths = LocationDescriptor.HandwrittenPaths(project);
+        Solution solution = project.Solution;
+        IEnumerable<ISymbol> symbols = await ResolveAsync(project, symbolName, cancellationToken)
+            .ConfigureAwait(false);
+
+        List<OverrideHierarchy> results = [];
+        foreach (ISymbol symbol in symbols)
+        {
+            IEnumerable<ISymbol> overriders = await SymbolFinder
+                .FindOverridesAsync(symbol, solution, cancellationToken: cancellationToken)
+                .ConfigureAwait(false);
+
+            List<SymbolLocations> overriddenBy =
+            [
+                .. overriders.Select(overrider => new SymbolLocations(
+                    overrider.ToDisplayString(),
+                    LocationDescriptor.Definitions(overrider, handwrittenPaths)))
+            ];
+
+            List<SymbolLocations> overrides = [];
+            for (ISymbol? current = OverriddenMember(symbol);
+                current is not null;
+                current = OverriddenMember(current))
+            {
+                overrides.Add(new SymbolLocations(
+                    current.ToDisplayString(),
+                    LocationDescriptor.Definitions(current, handwrittenPaths)));
+            }
+
+            results.Add(new OverrideHierarchy(symbol.ToDisplayString(), overriddenBy, overrides));
+        }
+
+        return results;
+    }
+
+    private static ISymbol? OverriddenMember(ISymbol symbol) => symbol switch
+    {
+        IMethodSymbol method => method.OverriddenMethod,
+        IPropertySymbol property => property.OverriddenProperty,
+        IEventSymbol @event => @event.OverriddenEvent,
+        _ => null,
+    };
 
     private static Task<IEnumerable<ISymbol>> ResolveAsync(
         Project project,
