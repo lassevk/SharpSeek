@@ -30,6 +30,12 @@ public static class MSBuildRegistration
                 return _instance;
             }
 
+            // Design-time builds run in an out-of-process MSBuild BuildHost which, with node reuse
+            // on, leaves reusable MSBuild worker processes lingering after each build. In a
+            // long-running server that reloads on .csproj changes those would accumulate, so we
+            // disable node reuse for this process (and the MSBuild children it spawns).
+            Environment.SetEnvironmentVariable("MSBUILDDISABLENODEREUSE", "1");
+
             VisualStudioInstance instance = MSBuildLocator
                 .QueryVisualStudioInstances()
                 .Where(candidate => candidate.DiscoveryType == DiscoveryType.DotNetSdk)

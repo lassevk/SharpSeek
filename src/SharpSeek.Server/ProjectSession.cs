@@ -138,12 +138,24 @@ internal sealed class ProjectSession : IDisposable
         {
             IncludeSubdirectories = true,
             NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName | NotifyFilters.DirectoryName,
+            // A larger buffer reduces dropped events during bursty changes (e.g. a git checkout).
+            InternalBufferSize = 64 * 1024,
         };
         _watcher.Changed += OnContentChanged;
         _watcher.Created += OnStructuralChange;
         _watcher.Deleted += OnStructuralChange;
         _watcher.Renamed += OnStructuralChange;
+        _watcher.Error += OnWatcherError;
         _watcher.EnableRaisingEvents = true;
+    }
+
+    private void OnWatcherError(object sender, ErrorEventArgs e)
+    {
+        // The buffer overflowed (too many changes at once) and events were dropped. Force a full
+        // reload on the next request rather than risk serving stale results.
+        _structuralChange = true;
+        _dirty = true;
+        _logger.LogWarning(e.GetException(), "File watcher error; the project will be reloaded.");
     }
 
     private void OnContentChanged(object sender, FileSystemEventArgs e)
