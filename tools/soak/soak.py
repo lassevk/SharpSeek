@@ -12,6 +12,7 @@ Usage:
 Requires: a .NET 10 SDK on PATH and Windows PowerShell (for process sampling).
 """
 
+import argparse
 import csv
 import io
 import json
@@ -108,9 +109,19 @@ class McpClient:
 
 
 def main():
-    iterations = int(sys.argv[1]) if len(sys.argv) > 1 else 150
-    reload_every = int(sys.argv[2]) if len(sys.argv) > 2 else 50
-    edit_every, sample_every = 15, 10
+    parser = argparse.ArgumentParser(description="SharpSeek MCP server soak test.")
+    parser.add_argument("iterations", nargs="?", type=int, default=150)
+    parser.add_argument("reload_every", nargs="?", type=int, default=50)
+    parser.add_argument("--project", default=None,
+                        help="Soak an existing (already-restored) project in place, READ-ONLY "
+                             "(no edits or reloads, so the project is never modified).")
+    args = parser.parse_args()
+
+    iterations = args.iterations
+    external = args.project is not None
+    reload_every = 0 if external else args.reload_every
+    edit_every = 0 if external else 15
+    sample_every = 10
 
     # Build the server once.
     print("Building server (Release)...")
@@ -121,18 +132,24 @@ def main():
     dll = os.path.join(
         REPO_ROOT, "src", "SharpSeek.Server", "bin", "Release", "net10.0", "SharpSeek.Server.dll")
 
-    # Isolated temp copy of the fixture (so the repo is never touched), then restore it.
-    workdir = tempfile.mkdtemp(prefix="sharpseek-soak-")
-    fixture = os.path.join(workdir, "SampleBlazorApp")
-    shutil.copytree(FIXTURE_DIR, fixture,
-                    ignore=shutil.ignore_patterns("bin", "obj"))
-    csproj = os.path.join(fixture, "SampleBlazorApp.csproj")
-    print("Restoring temp fixture...")
-    if run(["dotnet", "restore", csproj]).returncode != 0:
-        sys.exit("Fixture restore failed.")
+    workdir = None
+    edit_file = edit_base = None
+    if external:
+        csproj = os.path.abspath(args.project)
+        print(f"External READ-ONLY soak (no edits/reloads) against {csproj}")
+    else:
+        # Isolated temp copy of the fixture (so the repo is never touched), then restore it.
+        workdir = tempfile.mkdtemp(prefix="sharpseek-soak-")
+        fixture = os.path.join(workdir, "SampleBlazorApp")
+        shutil.copytree(FIXTURE_DIR, fixture,
+                        ignore=shutil.ignore_patterns("bin", "obj"))
+        csproj = os.path.join(fixture, "SampleBlazorApp.csproj")
+        print("Restoring temp fixture...")
+        if run(["dotnet", "restore", csproj]).returncode != 0:
+            sys.exit("Fixture restore failed.")
 
-    edit_file = os.path.join(fixture, "Domain", "Greeting.cs")
-    edit_base = open(edit_file, encoding="utf-8").read()
+        edit_file = os.path.join(fixture, "Domain", "Greeting.cs")
+        edit_base = open(edit_file, encoding="utf-8").read()
 
     print(f"Launching server against {csproj}\n")
     proc = subprocess.Popen(
@@ -148,15 +165,27 @@ def main():
             "clientInfo": {"name": "soak", "version": "1.0"}})
         client.notify("notifications/initialized")
 
-        calls = [
-            ("find_references", {"symbolName": "ShowPreviousYearAsync"}),
-            ("type_hierarchy", {"typeName": "Dog"}),
-            ("search_symbols", {"query": "Greet"}),
-            ("get_diagnostics", {}),
-            ("find_unused_symbols", {}),
-            ("call_hierarchy", {"methodName": "Used"}),
-            ("project_overview", {}),
-        ]
+        if external:
+            # Lighter mix using symbols that exist in the dogfooding project; avoids repeating
+            # whole-project scans (find_unused_symbols) that would dominate runtime on a real app.
+            calls = [
+                ("find_references", {"symbolName": "ShowMonthAsync"}),
+                ("search_symbols", {"query": "Calendar"}),
+                ("get_symbol_info", {"symbolName": "Calendar"}),
+                ("document_outline", {"filePath": "Components/Pages/Calendar.razor.cs"}),
+                ("call_hierarchy", {"methodName": "ShowMonthAsync"}),
+                ("project_overview", {}),
+            ]
+        else:
+            calls = [
+                ("find_references", {"symbolName": "ShowPreviousYearAsync"}),
+                ("type_hierarchy", {"typeName": "Dog"}),
+                ("search_symbols", {"query": "Greet"}),
+                ("get_diagnostics", {}),
+                ("find_unused_symbols", {}),
+                ("call_hierarchy", {"methodName": "Used"}),
+                ("project_overview", {}),
+            ]
 
         edits = 0
         reloads = 0
@@ -166,12 +195,12 @@ def main():
             if resp.get("error"):
                 print(f"  iter {i}: tool {name} error: {resp['error']}")
 
-            if i % edit_every == 0:
+            if edit_every and i % edit_every == 0:
                 edits += 1
                 with open(edit_file, "w", encoding="utf-8") as handle:
                     handle.write(edit_base + f"\npublic class SoakType{edits};\n")
 
-            if i % reload_every == 0:
+            if reload_every and i % reload_every == 0:
                 reloads += 1
                 # Touch the .csproj to trigger the structural-reload path.
                 with open(csproj, "a", encoding="utf-8") as handle:
@@ -213,7 +242,8 @@ def main():
             proc.wait(timeout=5)
         except subprocess.TimeoutExpired:
             proc.kill()
-        shutil.rmtree(workdir, ignore_errors=True)
+        if workdir is not None:
+            shutil.rmtree(workdir, ignore_errors=True)
 
 
 if __name__ == "__main__":
