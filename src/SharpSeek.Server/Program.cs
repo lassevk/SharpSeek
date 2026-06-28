@@ -31,6 +31,7 @@ builder.Services.AddSingleton(serviceProvider =>
 builder.Services.AddSingleton<ReferenceFinder>();
 builder.Services.AddSingleton<SymbolNavigator>();
 builder.Services.AddSingleton<SymbolExplorer>();
+builder.Services.AddSingleton<DeadCodeFinder>();
 builder.Services
     .AddMcpServer()
     .WithStdioServerTransport()

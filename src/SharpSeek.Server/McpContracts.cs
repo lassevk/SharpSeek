@@ -78,6 +78,15 @@ internal sealed record OutlineItemDto(string Symbol, string Kind, int Line)
     public static OutlineItemDto From(OutlineItem item) => new(item.Display, item.Kind, item.Line);
 }
 
+/// <summary>The MCP-facing result for an unused (dead-code) symbol.</summary>
+internal sealed record UnusedSymbolDto(string Symbol, string Kind, LocationDto Location)
+{
+    public static UnusedSymbolDto From(UnusedSymbol symbol) => new(
+        symbol.Display,
+        symbol.Kind,
+        LocationDto.From(symbol.Location));
+}
+
 /// <summary>A single location in the MCP result.</summary>
 /// <param name="File">The original file path (generated hits are mapped back to their source).</param>
 /// <param name="Line">1-based line number.</param>

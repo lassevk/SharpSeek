@@ -86,6 +86,7 @@ Tools:
 | `search_symbols` | Workspace symbol search by name pattern (substring / camel-case). |
 | `get_symbol_info` | Kind, accessibility, containing type, XML doc, and location(s) of a symbol. |
 | `document_outline` | Types and members declared in a file, with kind and line. |
+| `find_unused_symbols` | Private members with no references (dead code) — counts generated usages, so `@onclick`-only handlers are not false-flagged. |
 
 ## Testing
 
