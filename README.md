@@ -35,14 +35,21 @@ tool asks the question. A Roslyn-native tool closes it:
 The headline capability: *"find references to this method, including the `.razor` that wires up
 `@onclick`, reported on the `.razor` line"* — something a generic LSP cannot do cleanly.
 
-## Status: walking skeleton
+## Status
 
-The core idea is proven end to end and exposed over MCP. The `find_references` engine loads a
-Blazor project through `MSBuildWorkspace` on .NET 10 (with the Razor generator running), finds
-the `@onclick`-only handler `ShowPreviousYearAsync` inside the generated `BuildRenderTree`, and
-maps it back to the original `.razor` line. It is reachable as the `find_references` MCP tool
-(see [Running as an MCP server](#running-as-an-mcp-server)) and verified by an automated test
-against an in-repo [fixture](#testing).
+A working MCP server with 16 read-only navigation/analysis tools (see
+[Running as an MCP server](#running-as-an-mcp-server)), a warm + incremental workspace that picks
+up on-disk edits, and a guard against the Roslyn↔SDK version skew that silently breaks the Razor
+generator. Every tool has an automated test against an in-repo [fixture](#testing).
+
+The founding capability is proven end to end: `find_references` loads a Blazor project through
+`MSBuildWorkspace` on .NET 10 (with the Razor generator running), finds the `@onclick`-only
+handler `ShowPreviousYearAsync` inside the generated `BuildRenderTree`, and maps it back to the
+original `.razor` line — a reference a generic LSP-based tool misses. The same generated-code
+awareness flows through the other tools (e.g. `find_unused_symbols` does not flag a handler used
+only from `.razor`).
+
+Not yet implemented: write operations (`rename_symbol`, `apply_code_fix`).
 
 ## Architecture
 
