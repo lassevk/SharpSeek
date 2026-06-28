@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/SharpSeek.Engine/SharpSeek.Engine.csproj" />
+    <Project Path="src/SharpSeek.Server/SharpSeek.Server.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/SharpSeek.Engine.Tests/SharpSeek.Engine.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tests/fixtures/">
+    <Project Path="tests/fixtures/SampleBlazorApp/SampleBlazorApp.csproj" />
+  </Folder>
+</Solution>

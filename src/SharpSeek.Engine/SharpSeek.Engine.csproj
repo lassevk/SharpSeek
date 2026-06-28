@@ -1,0 +1,25 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Build.Locator" Version="1.11.2" />
+    <!-- These versions must match the Roslyn build shipped in the target .NET SDK
+         (dotnet 10.0.301 ships 5.6.0-2.26270.133). The SDK's source generators - especially
+         the Razor generator - are compiled against that exact Roslyn and only instantiate when
+         we load a compatible (>=) compiler. The matching build is on the dotnet-tools feed
+         (see nuget.config), as it is not published to nuget.org. -->
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.6.0-2.26270.133" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.6.0-2.26270.133" />
+    <PackageReference Include="Microsoft.CodeAnalysis.Workspaces.MSBuild" Version="5.6.0-2.26270.133" />
+    <!-- MSBuild assemblies must be loaded from the SDK that MSBuildLocator registers at
+         runtime, not copied to our output. ExcludeAssets="runtime" keeps them out of the
+         output folder; PrivateAssets="all" stops the reference flowing to consumers. -->
+    <PackageReference Include="Microsoft.Build.Framework" Version="17.11.48" ExcludeAssets="runtime" PrivateAssets="all" />
+  </ItemGroup>
+
+</Project>

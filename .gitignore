@@ -401,3 +401,6 @@ FodyWeavers.xsd
 
 # MacOS Files
 .DS_Store
+
+# AI
+.serena/

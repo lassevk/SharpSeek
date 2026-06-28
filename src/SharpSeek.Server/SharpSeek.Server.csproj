@@ -1,0 +1,22 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\SharpSeek.Engine\SharpSeek.Engine.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- This is the entry-point process where MSBuildLocator resolves MSBuild from the SDK at
+         runtime. Keep the transitive MSBuild assemblies out of the output for the same reason
+         as in the Engine project. -->
+    <PackageReference Include="Microsoft.Build.Framework" Version="17.11.48"
+                      ExcludeAssets="runtime" PrivateAssets="all" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>
