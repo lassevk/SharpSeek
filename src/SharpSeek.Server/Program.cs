@@ -44,7 +44,16 @@ builder.Services.AddSingleton<DiagnosticReader>();
 builder.Services.AddSingleton<CallHierarchyAnalyzer>();
 builder.Services.AddSingleton<ProjectInspector>();
 builder.Services
-    .AddMcpServer()
+    .AddMcpServer(options => options.ServerInstructions =
+        "SharpSeek is a Roslyn-based code navigation server for a SINGLE .NET/C# project. It is " +
+        "bound for its entire lifetime to exactly one project:\n" +
+        $"    {fullProjectPath}\n" +
+        "Every tool operates on that project only - results always pertain to it, regardless of " +
+        "the current working directory or any other project that may be open. Use these tools " +
+        "ONLY for navigating and analysing that .NET/C# project. They do not apply to other " +
+        "projects, other solutions, or non-.NET languages (e.g. JavaScript, Python, Go). A key " +
+        "strength is that references are found even inside source-generated code (e.g. Blazor / " +
+        "Razor) and mapped back to the original source.")
     .WithStdioServerTransport()
     .WithToolsFromAssembly();
 
