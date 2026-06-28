@@ -89,4 +89,23 @@ internal sealed class CodeNavigationTools
 
         return [.. results.Select(TypeHierarchyResult.From)];
     }
+
+    [McpServerTool(Name = "call_hierarchy")]
+    [Description(
+        "Show the call hierarchy of a method (by name): incoming callers (who calls it, including " +
+        "calls from generated code, mapped back to source) and outgoing calls (what it calls). " +
+        "Each entry includes the call site location.")]
+    public static async Task<IReadOnlyList<CallHierarchyResult>> CallHierarchyAsync(
+        ProjectSession session,
+        CallHierarchyAnalyzer analyzer,
+        [Description("The simple (unqualified) name of the method, e.g. \"ShowMonthAsync\".")]
+        string methodName,
+        CancellationToken cancellationToken)
+    {
+        Project project = await session.GetProjectAsync(cancellationToken);
+        IReadOnlyList<CallHierarchy> results =
+            await analyzer.AnalyzeAsync(project, methodName, cancellationToken);
+
+        return [.. results.Select(CallHierarchyResult.From)];
+    }
 }

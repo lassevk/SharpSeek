@@ -88,6 +88,7 @@ Tools:
 | `document_outline` | Types and members declared in a file, with kind and line. |
 | `find_unused_symbols` | Private members with no references (dead code) — counts generated usages, so `@onclick`-only handlers are not false-flagged. |
 | `get_diagnostics` | Compiler errors/warnings for the project or a file, filterable by severity. |
+| `call_hierarchy` | Incoming callers (incl. from generated code) and outgoing calls of a method. |
 
 ## Testing
 

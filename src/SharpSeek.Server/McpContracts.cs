@@ -78,6 +78,34 @@ internal sealed record OutlineItemDto(string Symbol, string Kind, int Line)
     public static OutlineItemDto From(OutlineItem item) => new(item.Display, item.Kind, item.Line);
 }
 
+/// <summary>The MCP-facing call hierarchy of a method.</summary>
+internal sealed record CallHierarchyResult(
+    string Method,
+    IReadOnlyList<IncomingCallDto> Incoming,
+    IReadOnlyList<OutgoingCallDto> Outgoing)
+{
+    public static CallHierarchyResult From(CallHierarchy hierarchy) => new(
+        hierarchy.Method,
+        [.. hierarchy.Incoming.Select(IncomingCallDto.From)],
+        [.. hierarchy.Outgoing.Select(OutgoingCallDto.From)]);
+}
+
+/// <summary>An incoming caller and its call site(s).</summary>
+internal sealed record IncomingCallDto(string Caller, IReadOnlyList<LocationDto> CallSites)
+{
+    public static IncomingCallDto From(IncomingCall call) => new(
+        call.Caller,
+        [.. call.CallSites.Select(LocationDto.From)]);
+}
+
+/// <summary>An outgoing callee and its call site.</summary>
+internal sealed record OutgoingCallDto(string Callee, LocationDto CallSite)
+{
+    public static OutgoingCallDto From(OutgoingCall call) => new(
+        call.Callee,
+        LocationDto.From(call.CallSite));
+}
+
 /// <summary>The MCP-facing compiler diagnostic.</summary>
 internal sealed record DiagnosticDto(string Id, string Severity, string Message, LocationDto? Location)
 {

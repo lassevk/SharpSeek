@@ -33,6 +33,7 @@ builder.Services.AddSingleton<SymbolNavigator>();
 builder.Services.AddSingleton<SymbolExplorer>();
 builder.Services.AddSingleton<DeadCodeFinder>();
 builder.Services.AddSingleton<DiagnosticReader>();
+builder.Services.AddSingleton<CallHierarchyAnalyzer>();
 builder.Services
     .AddMcpServer()
     .WithStdioServerTransport()
