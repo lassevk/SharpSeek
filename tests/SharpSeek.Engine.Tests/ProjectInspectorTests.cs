@@ -19,11 +19,12 @@ public class ProjectInspectorTests
 
         SolutionOverview overview = await inspector.GetOverviewAsync(_fixture.Solution, cancellationToken);
 
-        ProjectOverview project = Assert.Single(overview.Projects);
-        Assert.Equal("SampleBlazorApp", project.Name);
+        // The fixture is a multi-project solution (SampleBlazorApp + the libraries it references).
+        ProjectOverview project = Assert.Single(overview.Projects, p => p.Name == "SampleBlazorApp");
         Assert.Equal("C#", project.Language);
         Assert.True(project.DocumentCount > 0);
         // The Razor generator produces at least the Calendar component.
         Assert.True(project.GeneratedDocumentCount > 0);
+        Assert.Contains("SampleLibrary", project.ProjectReferences);
     }
 }

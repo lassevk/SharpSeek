@@ -84,6 +84,25 @@ internal sealed class CodeAnalysisTools
         return SolutionOverviewDto.From(overview);
     }
 
+    [McpServerTool(Name = "project_dependencies")]
+    [Description(
+        "Analyse project-to-project dependencies across the solution by ACTUAL usage. For each " +
+        "project, returns its declared <ProjectReference>s, the references it actually uses (a " +
+        "symbol from the other project is referenced, including in generated code), and declared " +
+        "references that are never used (dead references worth removing). Scans every project's " +
+        "semantic model, so it can be slow on large solutions.")]
+    public static async Task<IReadOnlyList<ProjectDependenciesDto>> ProjectDependenciesAsync(
+        ProjectSession session,
+        DependencyAnalyzer analyzer,
+        CancellationToken cancellationToken)
+    {
+        Solution solution = await session.GetSolutionAsync(cancellationToken);
+        IReadOnlyList<ProjectDependencies> results =
+            await analyzer.AnalyzeAsync(solution, cancellationToken);
+
+        return [.. results.Select(ProjectDependenciesDto.From)];
+    }
+
     [McpServerTool(Name = "get_diagnostics")]
     [Description(
         "Get compiler diagnostics (errors, warnings) for the solution, or for a single file when " +

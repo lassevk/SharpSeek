@@ -39,6 +39,7 @@ builder.Services.AddSingleton<DeadCodeFinder>();
 builder.Services.AddSingleton<DiagnosticReader>();
 builder.Services.AddSingleton<CallHierarchyAnalyzer>();
 builder.Services.AddSingleton<ProjectInspector>();
+builder.Services.AddSingleton<DependencyAnalyzer>();
 builder.Services
     .AddMcpServer(options => options.ServerInstructions =
         "SharpSeek is a Roslyn-based code navigation server for .NET/C#. It analyses ONE .NET " +

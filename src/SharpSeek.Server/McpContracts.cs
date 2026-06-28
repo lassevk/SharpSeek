@@ -104,6 +104,20 @@ internal sealed record GeneratorDto(string Assembly, int Generators, int OutputD
         new(generator.Assembly, generator.GeneratorCount, generator.OutputDocuments);
 }
 
+/// <summary>The MCP-facing project dependency analysis.</summary>
+internal sealed record ProjectDependenciesDto(
+    string Project,
+    IReadOnlyList<string> DeclaredReferences,
+    IReadOnlyList<string> UsedReferences,
+    IReadOnlyList<string> UnusedReferences)
+{
+    public static ProjectDependenciesDto From(ProjectDependencies dependencies) => new(
+        dependencies.Project,
+        dependencies.DeclaredReferences,
+        dependencies.UsedReferences,
+        dependencies.UnusedReferences);
+}
+
 /// <summary>The MCP-facing solution overview.</summary>
 internal sealed record SolutionOverviewDto(string? FilePath, IReadOnlyList<ProjectOverviewDto> Projects)
 {
