@@ -8,8 +8,9 @@
     <!-- This is the entry-point process where MSBuildLocator resolves MSBuild from the SDK at
          runtime. Keep the transitive MSBuild assemblies out of the output for the same reason
          as in the Engine project. -->
-    <PackageReference Include="Microsoft.Build.Framework" Version="17.11.48"
-                      ExcludeAssets="runtime" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.Build.Framework" Version="17.11.48" ExcludeAssets="runtime" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.9" />
+    <PackageReference Include="ModelContextProtocol" Version="1.4.0" />
   </ItemGroup>
 
   <PropertyGroup>

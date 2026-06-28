@@ -37,20 +37,49 @@ The headline capability: *"find references to this method, including the `.razor
 
 ## Status: walking skeleton
 
-The core idea is proven end to end. The `find_references` engine loads a Blazor project through
-`MSBuildWorkspace` on .NET 10 (with the Razor generator running), finds the `@onclick`-only
-handler `ShowPreviousYearAsync` inside the generated `BuildRenderTree`, and maps it back to the
-original `.razor` line. This is verified by an automated test against an in-repo
-[fixture](#testing). What remains is exposing it as an MCP tool (the host wiring).
+The core idea is proven end to end and exposed over MCP. The `find_references` engine loads a
+Blazor project through `MSBuildWorkspace` on .NET 10 (with the Razor generator running), finds
+the `@onclick`-only handler `ShowPreviousYearAsync` inside the generated `BuildRenderTree`, and
+maps it back to the original `.razor` line. It is reachable as the `find_references` MCP tool
+(see [Running as an MCP server](#running-as-an-mcp-server)) and verified by an automated test
+against an in-repo [fixture](#testing).
 
 ## Architecture
 
 | Project | Role |
 | --- | --- |
 | `src/SharpSeek.Engine` | Class library. Roslyn + `MSBuildWorkspace` loading, `find_references`. |
-| `src/SharpSeek.Server` | Host process. Currently a verification harness; becomes the MCP host. |
+| `src/SharpSeek.Server` | MCP server (stdio) exposing the tools; `diagnose` subcommand for manual CLI checks. |
 | `tests/SharpSeek.Engine.Tests` | xUnit v3 tests that load the fixture and assert behaviour. |
 | `tests/fixtures/SampleBlazorApp` | Stable Blazor (Razor Class Library) fixture — the pinned test target. |
+
+## Running as an MCP server
+
+The server speaks MCP over stdio. It operates on a single project, configured with `--project`
+or the `SHARPSEEK_PROJECT` environment variable; the project is loaded once and kept warm.
+
+```sh
+dotnet run --project src/SharpSeek.Server -- --project <path-to-csproj>
+```
+
+Example MCP client registration (e.g. an editor/agent `mcp.json`):
+
+```json
+{
+  "mcpServers": {
+    "sharpseek": {
+      "command": "dotnet",
+      "args": ["run", "--project", "src/SharpSeek.Server", "--", "--project", "<path-to-csproj>"]
+    }
+  }
+}
+```
+
+Tools:
+
+| Tool | Description |
+| --- | --- |
+| `find_references` | All references to a symbol (by name), including those in source-generated code, each mapped back to its original location and tagged `handwritten` or `generated`. |
 
 ## Testing
 
@@ -97,8 +126,8 @@ also be pointed at any .NET 10 Blazor project on disk — for example **SskWeb**
 `Calendar.razor.cs` and used only from `Calendar.razor:11` via `@onclick`:
 
 ```sh
-dotnet run --project src/SharpSeek.Server -- "D:\Dev\SskWeb\sskweb-claude\SskWeb\SskWeb.csproj"
+dotnet run --project src/SharpSeek.Server -- diagnose "D:\Dev\SskWeb\sskweb-claude\SskWeb\SskWeb.csproj"
 ```
 
-This is a convenience for manual checks only; the repository does not depend on that project
-existing.
+This `diagnose` subcommand prints results to the console (it does not start the MCP server) and
+is a convenience for manual checks only; the repository does not depend on that project existing.

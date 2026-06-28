@@ -1,73 +1,49 @@
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+
 using SharpSeek.Engine;
+using SharpSeek.Server;
 
-// NOTE: This is a temporary verification harness for the walking-skeleton milestone. It loads a
-// project and exercises the find_references engine logic from the command line. It will be
-// replaced by the MCP host (see issue #3) once the first tool is wired up.
-
-if (args.Length < 1)
+// The "diagnose" subcommand runs find_references from the CLI for manual checks against a
+// project on disk. Anything else starts the MCP server over stdio.
+if (args.Length > 0 && string.Equals(args[0], "diagnose", StringComparison.Ordinal))
 {
-    Console.Error.WriteLine("Usage: SharpSeek.Server <path-to-csproj> [symbolName]");
+    return await Diagnostics.RunAsync(args[1..]);
+}
+
+string? projectPath = ResolveProjectPath(args);
+if (projectPath is null)
+{
+    await Console.Error.WriteLineAsync(
+        "No project configured. Pass --project <path-to-csproj> or set SHARPSEEK_PROJECT.");
     return 1;
 }
 
-string projectPath = Path.GetFullPath(args[0]);
-string symbolName = args.Length >= 2 ? args[1] : "ShowPreviousYearAsync";
+HostApplicationBuilder builder = Host.CreateApplicationBuilder(args);
 
-Console.WriteLine($"Loading project: {projectPath}");
-WorkspaceLoader loader = new();
-ProjectLoadResult loadResult = await loader.LoadProjectAsync(projectPath);
+// The stdio transport uses stdout for protocol messages, so all logging must go to stderr.
+builder.Logging.AddConsole(options => options.LogToStandardErrorThreshold = LogLevel.Trace);
 
-if (loadResult.Diagnostics.Count > 0)
-{
-    Console.WriteLine($"Workspace diagnostics ({loadResult.Diagnostics.Count}):");
-    foreach (var diagnostic in loadResult.Diagnostics)
-    {
-        Console.WriteLine($"  [{diagnostic.Kind}] {diagnostic.Message}");
-    }
-}
+builder.Services.AddSingleton(new ProjectSession(Path.GetFullPath(projectPath)));
+builder.Services.AddSingleton<ReferenceFinder>();
+builder.Services
+    .AddMcpServer()
+    .WithStdioServerTransport()
+    .WithToolsFromAssembly();
 
-var generated = await loadResult.Project.GetSourceGeneratedDocumentsAsync();
-Console.WriteLine(
-    $"Loaded: {loadResult.Project.Name} " +
-    $"({loadResult.Project.Documents.Count()} documents, {generated.Count()} generated)");
-
-Console.WriteLine($"\nFinding references to '{symbolName}'...\n");
-ReferenceFinder finder = new();
-IReadOnlyList<SymbolReferences> results = await finder.FindReferencesAsync(loadResult.Project, symbolName);
-
-if (results.Count == 0)
-{
-    Console.WriteLine($"No source-declared symbol named '{symbolName}' was found.");
-    return 1;
-}
-
-foreach (SymbolReferences result in results)
-{
-    Console.WriteLine($"Symbol: {result.SymbolDisplay}");
-
-    Console.WriteLine($"  Definitions ({result.Definitions.Count}):");
-    foreach (ReferenceLocationInfo definition in result.Definitions)
-    {
-        Console.WriteLine($"    {Format(definition)}");
-    }
-
-    Console.WriteLine($"  References ({result.References.Count}):");
-    foreach (ReferenceLocationInfo reference in result.References)
-    {
-        Console.WriteLine($"    {Format(reference)}");
-    }
-}
-
+await builder.Build().RunAsync();
 return 0;
 
-static string Format(ReferenceLocationInfo location)
+static string? ResolveProjectPath(string[] args)
 {
-    string where = $"{location.FilePath}:{location.Line}:{location.Column}";
-    if (location.Origin == ReferenceOrigin.Generated)
+    for (int i = 0; i < args.Length - 1; i++)
     {
-        string generatedName = Path.GetFileName(location.GeneratedFilePath ?? "<generated>");
-        return $"[generated] {where}  (in {generatedName})";
+        if (args[i] is "--project" or "-p")
+        {
+            return args[i + 1];
+        }
     }
 
-    return $"[handwritten] {where}";
+    return Environment.GetEnvironmentVariable("SHARPSEEK_PROJECT");
 }
