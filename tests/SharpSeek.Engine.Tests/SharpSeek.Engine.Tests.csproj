@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.7.0" />
+    <PackageReference Include="xunit.v3" Version="3.2.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5" />
+    <!-- Same reason as the other projects: MSBuild assemblies are loaded from the SDK that
+         MSBuildLocator registers at runtime, not copied to our output. -->
+    <PackageReference Include="Microsoft.Build.Framework" Version="17.11.48"
+                      ExcludeAssets="runtime" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\SharpSeek.Engine\SharpSeek.Engine.csproj" />
+    <!-- The fixture is loaded at runtime via MSBuildWorkspace by path, NOT referenced as an
+         assembly. ReferenceOutputAssembly=false forces it to be restored and built before the
+         tests run (so the workspace can load it) without pulling Blazor or its analyzers into
+         this test assembly. -->
+    <ProjectReference Include="..\fixtures\SampleBlazorApp\SampleBlazorApp.csproj"
+                      ReferenceOutputAssembly="false" PrivateAssets="all" ExcludeAssets="all" />
+  </ItemGroup>
+
+</Project>
