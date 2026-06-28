@@ -30,6 +30,7 @@ builder.Services.AddSingleton(serviceProvider =>
     new ProjectSession(fullProjectPath, serviceProvider.GetRequiredService<ILogger<ProjectSession>>()));
 builder.Services.AddSingleton<ReferenceFinder>();
 builder.Services.AddSingleton<SymbolNavigator>();
+builder.Services.AddSingleton<SymbolExplorer>();
 builder.Services
     .AddMcpServer()
     .WithStdioServerTransport()

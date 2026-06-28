@@ -83,6 +83,9 @@ Tools:
 | `go_to_definition` | Declaration location(s) of a symbol (by name). |
 | `find_implementations` | Implementations of an interface or abstract member (by name). |
 | `type_hierarchy` | Base types and derived types of a type (by name). |
+| `search_symbols` | Workspace symbol search by name pattern (substring / camel-case). |
+| `get_symbol_info` | Kind, accessibility, containing type, XML doc, and location(s) of a symbol. |
+| `document_outline` | Types and members declared in a file, with kind and line. |
 
 ## Testing
 
