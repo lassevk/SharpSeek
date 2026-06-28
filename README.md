@@ -94,6 +94,8 @@ Tools:
 | `call_hierarchy` | Incoming callers (incl. from generated code) and outgoing calls of a method. |
 | `find_overrides` | Members that override a member, and the members it overrides. |
 | `project_overview` | Project name, language, document/generated counts, references. |
+| `get_generated_document` | The C# a generator produced for a file (e.g. Razor `BuildRenderTree`). |
+| `list_generators` | Which source generators ran and how many documents each produced. |
 
 ## Testing
 

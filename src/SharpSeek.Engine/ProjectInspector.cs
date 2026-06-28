@@ -1,4 +1,5 @@
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.Text;
 
 namespace SharpSeek.Engine;
 
@@ -13,6 +14,12 @@ public sealed record ProjectOverview(
     int GeneratedDocumentCount,
     int MetadataReferenceCount,
     IReadOnlyList<string> ProjectReferences);
+
+/// <summary>The text of a source-generated document.</summary>
+public sealed record GeneratedDocumentInfo(string Name, string? FilePath, string Text);
+
+/// <summary>A source generator that ran, and how many documents it produced.</summary>
+public sealed record GeneratorInfo(string Assembly, int GeneratorCount, int OutputDocuments);
 
 /// <summary>Reports high-level structure of a loaded project.</summary>
 public sealed class ProjectInspector
@@ -45,5 +52,71 @@ public sealed class ProjectInspector
             generated.Count(),
             project.MetadataReferences.Count,
             projectReferences);
+    }
+
+    /// <summary>
+    /// Returns the source-generated documents matching a query, by generated file name/path or by
+    /// the originating source file (e.g. <c>Calendar.razor</c> matches <c>Calendar_razor.g.cs</c>).
+    /// </summary>
+    public async Task<IReadOnlyList<GeneratedDocumentInfo>> GetGeneratedDocumentsAsync(
+        Project project,
+        string query,
+        CancellationToken cancellationToken = default)
+    {
+        IEnumerable<Document> generated = await project
+            .GetSourceGeneratedDocumentsAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        string normalized = query.Replace('\\', '/');
+        string underscored = normalized.Replace('.', '_');
+
+        List<GeneratedDocumentInfo> results = [];
+        foreach (Document document in generated)
+        {
+            string path = (document.FilePath ?? string.Empty).Replace('\\', '/');
+            bool matches = path.Contains(normalized, StringComparison.OrdinalIgnoreCase)
+                || document.Name.Contains(normalized, StringComparison.OrdinalIgnoreCase)
+                || document.Name.Contains(underscored, StringComparison.OrdinalIgnoreCase);
+            if (!matches)
+            {
+                continue;
+            }
+
+            SourceText text = await document.GetTextAsync(cancellationToken).ConfigureAwait(false);
+            results.Add(new GeneratedDocumentInfo(document.Name, document.FilePath, text.ToString()));
+        }
+
+        return results;
+    }
+
+    /// <summary>Lists the source generators that ran and how many documents each produced.</summary>
+    public async Task<IReadOnlyList<GeneratorInfo>> ListGeneratorsAsync(
+        Project project,
+        CancellationToken cancellationToken = default)
+    {
+        IEnumerable<Document> generated = await project
+            .GetSourceGeneratedDocumentsAsync(cancellationToken)
+            .ConfigureAwait(false);
+        List<string> generatedPaths =
+            [.. generated.Select(document => (document.FilePath ?? string.Empty).Replace('\\', '/'))];
+
+        List<GeneratorInfo> results = [];
+        foreach (var reference in project.AnalyzerReferences)
+        {
+            int generatorCount = reference.GetGenerators(LanguageNames.CSharp).Length;
+            if (generatorCount == 0)
+            {
+                continue;
+            }
+
+            string assembly = Path.GetFileNameWithoutExtension(
+                reference.FullPath ?? reference.Display ?? string.Empty);
+            int outputs = generatedPaths.Count(path =>
+                path.Contains(assembly, StringComparison.OrdinalIgnoreCase));
+
+            results.Add(new GeneratorInfo(assembly, generatorCount, outputs));
+        }
+
+        return results;
     }
 }

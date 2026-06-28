@@ -90,6 +90,20 @@ internal sealed record OutlineItemDto(string Symbol, string Kind, int Line)
     public static OutlineItemDto From(OutlineItem item) => new(item.Display, item.Kind, item.Line);
 }
 
+/// <summary>The MCP-facing source-generated document.</summary>
+internal sealed record GeneratedDocumentDto(string Name, string? FilePath, string Text)
+{
+    public static GeneratedDocumentDto From(GeneratedDocumentInfo document) =>
+        new(document.Name, document.FilePath, document.Text);
+}
+
+/// <summary>The MCP-facing source-generator summary.</summary>
+internal sealed record GeneratorDto(string Assembly, int Generators, int OutputDocuments)
+{
+    public static GeneratorDto From(GeneratorInfo generator) =>
+        new(generator.Assembly, generator.GeneratorCount, generator.OutputDocuments);
+}
+
 /// <summary>The MCP-facing project overview.</summary>
 internal sealed record ProjectOverviewDto(
     string Name,

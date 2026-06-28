@@ -33,6 +33,41 @@ internal sealed class CodeAnalysisTools
         return [.. results.Select(UnusedSymbolDto.From)];
     }
 
+    [McpServerTool(Name = "get_generated_document")]
+    [Description(
+        "Show the C# produced by source generators for a file. Matches by generated file name/path " +
+        "or by the originating source file (e.g. \"Calendar.razor\" returns the generated " +
+        "Calendar_razor.g.cs). Useful for inspecting Blazor BuildRenderTree output.")]
+    public static async Task<IReadOnlyList<GeneratedDocumentDto>> GetGeneratedDocumentAsync(
+        ProjectSession session,
+        ProjectInspector inspector,
+        [Description("A generated file name, path fragment, or originating source file name.")]
+        string query,
+        CancellationToken cancellationToken)
+    {
+        Project project = await session.GetProjectAsync(cancellationToken);
+        IReadOnlyList<GeneratedDocumentInfo> results =
+            await inspector.GetGeneratedDocumentsAsync(project, query, cancellationToken);
+
+        return [.. results.Select(GeneratedDocumentDto.From)];
+    }
+
+    [McpServerTool(Name = "list_generators")]
+    [Description(
+        "List the source generators that ran for the project and how many documents each " +
+        "produced. Useful for confirming the Razor generator is active.")]
+    public static async Task<IReadOnlyList<GeneratorDto>> ListGeneratorsAsync(
+        ProjectSession session,
+        ProjectInspector inspector,
+        CancellationToken cancellationToken)
+    {
+        Project project = await session.GetProjectAsync(cancellationToken);
+        IReadOnlyList<GeneratorInfo> results =
+            await inspector.ListGeneratorsAsync(project, cancellationToken);
+
+        return [.. results.Select(GeneratorDto.From)];
+    }
+
     [McpServerTool(Name = "project_overview")]
     [Description(
         "Get high-level information about the loaded project: name, assembly name, language, " +
