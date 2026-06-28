@@ -95,6 +95,19 @@ claude mcp add sharpseek -s user -- "D:\Dev\SharpSeek\artifacts\server\SharpSeek
 (Add `--project <path>` after the executable to pin a fixed solution instead of following the
 folder.) Build the executable first with `dotnet publish src/SharpSeek.Server -c Release -o artifacts/server`.
 
+On **macOS/Linux**, publish on that machine (the apphost is OS-specific) and register via the
+portable DLL:
+
+```sh
+dotnet publish src/SharpSeek.Server -c Release -o artifacts/server
+claude mcp add sharpseek -s user -- dotnet "$(pwd)/artifacts/server/SharpSeek.Server.dll"
+```
+
+Any machine needs the **.NET 10 SDK**; the pinned Roslyn (see
+[the SDK/Roslyn coupling](#the-net-sdk--roslyn-coupling-important)) must be compatible with that
+SDK. If it isn't, the startup guard reports a clear error rather than failing silently — bump the
+pinned versions to match.
+
 ### Logging
 
 All logging goes to **stderr** (stdout is the MCP channel); your MCP client captures it. The
