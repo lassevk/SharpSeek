@@ -12,7 +12,8 @@ public sealed record ProjectDependencies(
     string Project,
     IReadOnlyList<string> DeclaredReferences,
     IReadOnlyList<string> UsedReferences,
-    IReadOnlyList<string> UnusedReferences);
+    IReadOnlyList<string> UnusedReferences,
+    IReadOnlyList<string> Dependents);
 
 /// <summary>
 /// Computes usage-based project dependencies across a solution by resolving which other projects'
@@ -31,7 +32,8 @@ public sealed class DependencyAnalyzer
             assemblyToProject[project.AssemblyName ?? project.Name] = project.Name;
         }
 
-        List<ProjectDependencies> results = [];
+        Dictionary<string, HashSet<string>> declaredByProject = new(StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, HashSet<string>> usedByProject = new(StringComparer.OrdinalIgnoreCase);
         foreach (Project project in solution.Projects)
         {
             HashSet<string> declared = new(StringComparer.OrdinalIgnoreCase);
@@ -48,11 +50,27 @@ public sealed class DependencyAnalyzer
                     .ConfigureAwait(false);
             used.Remove(project.Name);
 
+            declaredByProject[project.Name] = declared;
+            usedByProject[project.Name] = used;
+        }
+
+        List<ProjectDependencies> results = [];
+        foreach (Project project in solution.Projects)
+        {
+            HashSet<string> declared = declaredByProject[project.Name];
+            HashSet<string> used = usedByProject[project.Name];
+
+            // Dependents: projects that actually use this one (reverse of the used edges).
+            IReadOnlyList<string> dependents = Sorted(usedByProject
+                .Where(entry => entry.Value.Contains(project.Name))
+                .Select(entry => entry.Key));
+
             results.Add(new ProjectDependencies(
                 project.Name,
                 Sorted(declared),
                 Sorted(used),
-                Sorted(declared.Where(name => !used.Contains(name)))));
+                Sorted(declared.Where(name => !used.Contains(name))),
+                dependents));
         }
 
         return results;

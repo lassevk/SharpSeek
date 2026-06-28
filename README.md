@@ -126,7 +126,7 @@ Tools:
 | `call_hierarchy` | Incoming callers (incl. from generated code) and outgoing calls of a method. |
 | `find_overrides` | Members that override a member, and the members it overrides. |
 | `solution_overview` | The solution's projects with names, languages, document/generated counts, references. |
-| `project_dependencies` | Per project: declared references vs actually-used references, flagging declared-but-unused project references. |
+| `project_dependencies` | Per project: declared vs actually-used references (flags declared-but-unused ones) and dependents (who uses it). |
 | `get_generated_document` | The C# a generator produced for a file (e.g. Razor `BuildRenderTree`). |
 | `list_generators` | Which source generators ran and how many documents each produced. |
 | `activate_project` | Switch the analysed solution/project to a given path or directory. |

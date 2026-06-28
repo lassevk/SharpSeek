@@ -109,13 +109,15 @@ internal sealed record ProjectDependenciesDto(
     string Project,
     IReadOnlyList<string> DeclaredReferences,
     IReadOnlyList<string> UsedReferences,
-    IReadOnlyList<string> UnusedReferences)
+    IReadOnlyList<string> UnusedReferences,
+    IReadOnlyList<string> Dependents)
 {
     public static ProjectDependenciesDto From(ProjectDependencies dependencies) => new(
         dependencies.Project,
         dependencies.DeclaredReferences,
         dependencies.UsedReferences,
-        dependencies.UnusedReferences);
+        dependencies.UnusedReferences,
+        dependencies.Dependents);
 }
 
 /// <summary>The MCP-facing solution overview.</summary>

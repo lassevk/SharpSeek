@@ -89,8 +89,9 @@ internal sealed class CodeAnalysisTools
         "Analyse project-to-project dependencies across the solution by ACTUAL usage. For each " +
         "project, returns its declared <ProjectReference>s, the references it actually uses (a " +
         "symbol from the other project is referenced, including in generated code), and declared " +
-        "references that are never used (dead references worth removing). Scans every project's " +
-        "semantic model, so it can be slow on large solutions.")]
+        "references that are never used (dead references worth removing). Also lists each " +
+        "project's dependents (the projects that use it) for impact analysis. Scans every " +
+        "project's semantic model, so it can be slow on large solutions.")]
     public static async Task<IReadOnlyList<ProjectDependenciesDto>> ProjectDependenciesAsync(
         ProjectSession session,
         DependencyAnalyzer analyzer,

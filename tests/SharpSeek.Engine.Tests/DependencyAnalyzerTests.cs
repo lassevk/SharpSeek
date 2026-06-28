@@ -31,5 +31,9 @@ public class DependencyAnalyzerTests
         Assert.DoesNotContain("SampleUnused", app.UsedReferences);
         Assert.Contains("SampleUnused", app.UnusedReferences);
         Assert.DoesNotContain("SampleLibrary", app.UnusedReferences);
+
+        // SampleLibrary's dependents include SampleBlazorApp (which uses it).
+        ProjectDependencies library = Assert.Single(all, p => p.Project == "SampleLibrary");
+        Assert.Contains("SampleBlazorApp", library.Dependents);
     }
 }
