@@ -33,6 +33,22 @@ internal sealed class CodeAnalysisTools
         return [.. results.Select(UnusedSymbolDto.From)];
     }
 
+    [McpServerTool(Name = "project_overview")]
+    [Description(
+        "Get high-level information about the loaded project: name, assembly name, language, " +
+        "file path, document counts (hand-written, additional, generated), metadata reference " +
+        "count, and project references.")]
+    public static async Task<ProjectOverviewDto> ProjectOverviewAsync(
+        ProjectSession session,
+        ProjectInspector inspector,
+        CancellationToken cancellationToken)
+    {
+        Project project = await session.GetProjectAsync(cancellationToken);
+        ProjectOverview overview = await inspector.GetOverviewAsync(project, cancellationToken);
+
+        return ProjectOverviewDto.From(overview);
+    }
+
     [McpServerTool(Name = "get_diagnostics")]
     [Description(
         "Get compiler diagnostics (errors, warnings) for the project, or for a single file when " +

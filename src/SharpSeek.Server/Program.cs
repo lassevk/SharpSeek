@@ -34,6 +34,7 @@ builder.Services.AddSingleton<SymbolExplorer>();
 builder.Services.AddSingleton<DeadCodeFinder>();
 builder.Services.AddSingleton<DiagnosticReader>();
 builder.Services.AddSingleton<CallHierarchyAnalyzer>();
+builder.Services.AddSingleton<ProjectInspector>();
 builder.Services
     .AddMcpServer()
     .WithStdioServerTransport()

@@ -90,6 +90,7 @@ Tools:
 | `get_diagnostics` | Compiler errors/warnings for the project or a file, filterable by severity. |
 | `call_hierarchy` | Incoming callers (incl. from generated code) and outgoing calls of a method. |
 | `find_overrides` | Members that override a member, and the members it overrides. |
+| `project_overview` | Project name, language, document/generated counts, references. |
 
 ## Testing
 

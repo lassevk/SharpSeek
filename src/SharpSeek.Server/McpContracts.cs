@@ -90,6 +90,30 @@ internal sealed record OutlineItemDto(string Symbol, string Kind, int Line)
     public static OutlineItemDto From(OutlineItem item) => new(item.Display, item.Kind, item.Line);
 }
 
+/// <summary>The MCP-facing project overview.</summary>
+internal sealed record ProjectOverviewDto(
+    string Name,
+    string? AssemblyName,
+    string Language,
+    string? FilePath,
+    int Documents,
+    int AdditionalDocuments,
+    int GeneratedDocuments,
+    int MetadataReferences,
+    IReadOnlyList<string> ProjectReferences)
+{
+    public static ProjectOverviewDto From(ProjectOverview overview) => new(
+        overview.Name,
+        overview.AssemblyName,
+        overview.Language,
+        overview.FilePath,
+        overview.DocumentCount,
+        overview.AdditionalDocumentCount,
+        overview.GeneratedDocumentCount,
+        overview.MetadataReferenceCount,
+        overview.ProjectReferences);
+}
+
 /// <summary>The MCP-facing call hierarchy of a method.</summary>
 internal sealed record CallHierarchyResult(
     string Method,
