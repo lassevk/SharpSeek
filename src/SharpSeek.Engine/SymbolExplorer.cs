@@ -1,6 +1,7 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.FindSymbols;
+using Microsoft.CodeAnalysis.Text;
 
 namespace SharpSeek.Engine;
 
@@ -70,20 +71,71 @@ public sealed class SymbolExplorer
             .FindSourceDeclarationsAsync(project, symbolName, ignoreCase: false, cancellationToken)
             .ConfigureAwait(false);
 
-        List<SymbolDetails> results = [];
-        foreach (ISymbol symbol in symbols)
+        return [.. symbols.Select(symbol => BuildDetails(symbol, handwrittenPaths, cancellationToken))];
+    }
+
+    /// <summary>
+    /// Resolves the symbol referenced or declared at a position (1-based line and column) in a C#
+    /// source file. Returns an empty list if the file is not a C# document in the project or no
+    /// symbol is found there.
+    /// </summary>
+    public async Task<IReadOnlyList<SymbolDetails>> ResolveSymbolAtAsync(
+        Project project,
+        string filePath,
+        int line,
+        int column,
+        CancellationToken cancellationToken = default)
+    {
+        Document? document = FindDocument(project, filePath);
+        if (document is null)
         {
-            string? documentation = symbol.GetDocumentationCommentXml(cancellationToken: cancellationToken);
-            results.Add(new SymbolDetails(
-                symbol.ToDisplayString(),
-                symbol.Kind.ToString(),
-                symbol.DeclaredAccessibility.ToString(),
-                symbol.ContainingType?.ToDisplayString(),
-                string.IsNullOrWhiteSpace(documentation) ? null : documentation.Trim(),
-                LocationDescriptor.Definitions(symbol, handwrittenPaths)));
+            return [];
         }
 
-        return results;
+        SourceText text = await document.GetTextAsync(cancellationToken).ConfigureAwait(false);
+        if (line < 1 || line > text.Lines.Count)
+        {
+            return [];
+        }
+
+        TextLine textLine = text.Lines[line - 1];
+        int position = Math.Min(textLine.Start + Math.Max(0, column - 1), textLine.End);
+
+        SyntaxNode? root = await document.GetSyntaxRootAsync(cancellationToken).ConfigureAwait(false);
+        SemanticModel? model = await document.GetSemanticModelAsync(cancellationToken).ConfigureAwait(false);
+        if (root is null || model is null)
+        {
+            return [];
+        }
+
+        HashSet<string> handwrittenPaths = LocationDescriptor.HandwrittenPaths(project);
+        SyntaxToken token = root.FindToken(position);
+        for (SyntaxNode? node = token.Parent; node is not null; node = node.Parent)
+        {
+            ISymbol? symbol = model.GetSymbolInfo(node, cancellationToken).Symbol
+                ?? model.GetDeclaredSymbol(node, cancellationToken);
+            if (symbol is not null)
+            {
+                return [BuildDetails(symbol, handwrittenPaths, cancellationToken)];
+            }
+        }
+
+        return [];
+    }
+
+    private static SymbolDetails BuildDetails(
+        ISymbol symbol,
+        HashSet<string> handwrittenPaths,
+        CancellationToken cancellationToken)
+    {
+        string? documentation = symbol.GetDocumentationCommentXml(cancellationToken: cancellationToken);
+        return new SymbolDetails(
+            symbol.ToDisplayString(),
+            symbol.Kind.ToString(),
+            symbol.DeclaredAccessibility.ToString(),
+            symbol.ContainingType?.ToDisplayString(),
+            string.IsNullOrWhiteSpace(documentation) ? null : documentation.Trim(),
+            LocationDescriptor.Definitions(symbol, handwrittenPaths));
     }
 
     /// <summary>

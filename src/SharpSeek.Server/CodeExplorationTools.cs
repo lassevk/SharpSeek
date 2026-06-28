@@ -33,6 +33,26 @@ internal sealed class CodeExplorationTools
         return [.. results.Select(SymbolMatchDto.From)];
     }
 
+    [McpServerTool(Name = "find_symbol_at_position")]
+    [Description(
+        "Resolve the symbol at a position in a C# source file (1-based line and column) and return " +
+        "its details. Useful when you have an editor location rather than a name. Works on C# (.cs) " +
+        "files.")]
+    public static async Task<IReadOnlyList<SymbolInfoDto>> FindSymbolAtPositionAsync(
+        ProjectSession session,
+        SymbolExplorer explorer,
+        [Description("Path to the C# file (absolute or path suffix).")] string filePath,
+        [Description("1-based line number.")] int line,
+        [Description("1-based column number.")] int column,
+        CancellationToken cancellationToken)
+    {
+        Project project = await session.GetProjectAsync(cancellationToken);
+        IReadOnlyList<SymbolDetails> results =
+            await explorer.ResolveSymbolAtAsync(project, filePath, line, column, cancellationToken);
+
+        return [.. results.Select(SymbolInfoDto.From)];
+    }
+
     [McpServerTool(Name = "get_symbol_info")]
     [Description(
         "Get details about a symbol (by name): its kind, accessibility, containing type, XML " +

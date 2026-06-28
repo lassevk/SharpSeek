@@ -87,6 +87,7 @@ Tools:
 | `type_hierarchy` | Base types and derived types of a type (by name). |
 | `search_symbols` | Workspace symbol search by name pattern (substring / camel-case). |
 | `get_symbol_info` | Kind, accessibility, containing type, XML doc, and location(s) of a symbol. |
+| `find_symbol_at_position` | Resolve the symbol at a file + line/column (editor-style location). |
 | `document_outline` | Types and members declared in a file, with kind and line. |
 | `find_literal_usages` | Where a string/number/char literal appears, including in generated code. |
 | `find_unused_symbols` | Private members with no references (dead code) — counts generated usages, so `@onclick`-only handlers are not false-flagged. |
