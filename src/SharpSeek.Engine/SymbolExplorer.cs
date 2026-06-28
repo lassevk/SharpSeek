@@ -135,6 +135,40 @@ public sealed class SymbolExplorer
         return items;
     }
 
+    /// <summary>
+    /// Finds occurrences of a literal value (string, number, or char) across the project,
+    /// including literals emitted into source-generated code, mapped back to their source.
+    /// </summary>
+    public async Task<IReadOnlyList<ReferenceLocationInfo>> FindLiteralUsagesAsync(
+        Project project,
+        string value,
+        CancellationToken cancellationToken = default)
+    {
+        Compilation? compilation = await project.GetCompilationAsync(cancellationToken)
+            .ConfigureAwait(false);
+        if (compilation is null)
+        {
+            return [];
+        }
+
+        HashSet<string> handwrittenPaths = LocationDescriptor.HandwrittenPaths(project);
+        List<ReferenceLocationInfo> results = [];
+        foreach (SyntaxTree tree in compilation.SyntaxTrees)
+        {
+            SyntaxNode root = await tree.GetRootAsync(cancellationToken).ConfigureAwait(false);
+            foreach (LiteralExpressionSyntax literal in root.DescendantNodes().OfType<LiteralExpressionSyntax>())
+            {
+                if (string.Equals(literal.Token.ValueText, value, StringComparison.Ordinal)
+                    || string.Equals(literal.Token.Text, value, StringComparison.Ordinal))
+                {
+                    results.Add(LocationDescriptor.Describe(tree, literal.Span, handwrittenPaths));
+                }
+            }
+        }
+
+        return results;
+    }
+
     private static Document? FindDocument(Project project, string filePath)
     {
         string normalized = Normalize(filePath);

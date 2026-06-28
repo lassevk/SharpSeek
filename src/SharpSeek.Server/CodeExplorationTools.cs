@@ -50,6 +50,24 @@ internal sealed class CodeExplorationTools
         return [.. results.Select(SymbolInfoDto.From)];
     }
 
+    [McpServerTool(Name = "find_literal_usages")]
+    [Description(
+        "Find where a literal value (string, number, or char) appears in the project, including " +
+        "literals baked into source-generated code. Locations are mapped back to source where the " +
+        "generator provides mapping (static Razor markup stays in the generated file).")]
+    public static async Task<IReadOnlyList<LocationDto>> FindLiteralUsagesAsync(
+        ProjectSession session,
+        SymbolExplorer explorer,
+        [Description("The literal value to find, e.g. \"Hello\" or \"42\".")] string value,
+        CancellationToken cancellationToken)
+    {
+        Project project = await session.GetProjectAsync(cancellationToken);
+        IReadOnlyList<ReferenceLocationInfo> results =
+            await explorer.FindLiteralUsagesAsync(project, value, cancellationToken);
+
+        return [.. results.Select(LocationDto.From)];
+    }
+
     [McpServerTool(Name = "document_outline")]
     [Description(
         "List the types and members declared in a single document, with their kind and line " +
