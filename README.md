@@ -121,7 +121,7 @@ Tools:
 | `find_symbol_at_position` | Resolve the symbol at a file + line/column (editor-style location). |
 | `document_outline` | Types and members declared in a file, with kind and line. |
 | `find_literal_usages` | Where a string/number/char literal appears, including in generated code. |
-| `find_unused_symbols` | Private members with no references (dead code) — counts generated usages, so `@onclick`-only handlers are not false-flagged. |
+| `find_unused_symbols` | Members with no references (dead code) — counts generated usages, so `@onclick`-only handlers are not false-flagged. `scope=private` (default, safe) or `scope=solution` (also public/internal unused across the solution; verify — may be public API/reflection). |
 | `get_diagnostics` | Compiler errors/warnings for the project or a file, filterable by severity. |
 | `call_hierarchy` | Incoming callers (incl. from generated code) and outgoing calls of a method. |
 | `find_overrides` | Members that override a member, and the members it overrides. |

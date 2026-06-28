@@ -16,19 +16,28 @@ internal sealed class CodeAnalysisTools
 {
     [McpServerTool(Name = "find_unused_symbols")]
     [Description(
-        "Find private members (methods, properties, fields, events) with no references anywhere " +
-        "in the solution - i.e. dead code. References inside source-generated code are counted, so " +
-        "a private member used only from generated code (e.g. a Blazor @onclick handler) is NOT " +
-        "reported, unlike generic tools. Scans the whole solution, so it can be slow on large " +
-        "solutions. Note: members reached only via reflection or serialization may be reported.")]
+        "Find members (methods, properties, fields, events) with no references anywhere - i.e. " +
+        "dead code. References inside source-generated code are counted, so a member used only " +
+        "from generated code (e.g. a Blazor @onclick handler) is NOT reported, unlike generic " +
+        "tools. scope='private' (default) reports only private members and is safe. " +
+        "scope='solution' also reports internal/public members unused anywhere in the solution - " +
+        "useful for application solutions, but VERIFY each result: it may be part of a library's " +
+        "public API or used via reflection/DI/serialization. Scans the whole solution, so it can " +
+        "be slow on large solutions.")]
     public static async Task<IReadOnlyList<UnusedSymbolDto>> FindUnusedSymbolsAsync(
         ProjectSession session,
         DeadCodeFinder finder,
-        CancellationToken cancellationToken)
+        [Description("'private' (default, safe) or 'solution' (broader, needs verification).")]
+        string scope = "private",
+        CancellationToken cancellationToken = default)
     {
+        DeadCodeScope deadCodeScope = string.Equals(scope, "solution", StringComparison.OrdinalIgnoreCase)
+            ? DeadCodeScope.Solution
+            : DeadCodeScope.Private;
+
         Solution solution = await session.GetSolutionAsync(cancellationToken);
         IReadOnlyList<UnusedSymbol> results =
-            await finder.FindUnusedPrivateSymbolsAsync(solution, cancellationToken);
+            await finder.FindUnusedSymbolsAsync(solution, deadCodeScope, cancellationToken);
 
         return [.. results.Select(UnusedSymbolDto.From)];
     }
