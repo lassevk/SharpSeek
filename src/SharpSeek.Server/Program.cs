@@ -25,7 +25,9 @@ HostApplicationBuilder builder = Host.CreateApplicationBuilder(args);
 // The stdio transport uses stdout for protocol messages, so all logging must go to stderr.
 builder.Logging.AddConsole(options => options.LogToStandardErrorThreshold = LogLevel.Trace);
 
-builder.Services.AddSingleton(new ProjectSession(Path.GetFullPath(projectPath)));
+string fullProjectPath = Path.GetFullPath(projectPath);
+builder.Services.AddSingleton(serviceProvider =>
+    new ProjectSession(fullProjectPath, serviceProvider.GetRequiredService<ILogger<ProjectSession>>()));
 builder.Services.AddSingleton<ReferenceFinder>();
 builder.Services
     .AddMcpServer()

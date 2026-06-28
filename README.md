@@ -115,6 +115,20 @@ the installed SDK, restored from the `dotnet-tools` feed configured in
 If the SDK is upgraded and its generators start requiring a newer Roslyn than the pinned
 version, these package versions must be bumped to match.
 
+**This failure mode is now guarded.** When the Razor generator is present but fails to load
+(the skew), [`GeneratorHealthCheck`](src/SharpSeek.Engine/GeneratorHealthCheck.cs) detects it: the
+MCP server throws a clear, actionable error on the first request, and `diagnose` prints a warning
+— instead of silently returning results with the `.razor` references missing.
+
+To bump the pin after an SDK upgrade, find the SDK's Roslyn build version and set the
+`Microsoft.CodeAnalysis.*` versions in the Engine project to match:
+
+```sh
+# prints e.g. 5.6.0-2.26270.133
+dotnet --version  # identify the SDK, then inspect its Roslyn:
+#   <sdk-install>/sdk/<version>/Roslyn/bincore/Microsoft.CodeAnalysis.dll  (file version)
+```
+
 `MSBuildLocator` is registered against the newest installed .NET SDK before any MSBuild type is
 touched (see [`MSBuildRegistration`](src/SharpSeek.Engine/MSBuildRegistration.cs)).
 
