@@ -4,20 +4,21 @@ using Xunit;
 
 namespace SharpSeek.Engine.Tests;
 
+[Collection(SampleBlazorAppCollection.Name)]
 public class FindReferencesTests
 {
+    private readonly SampleBlazorAppFixture _fixture;
+
+    public FindReferencesTests(SampleBlazorAppFixture fixture) => _fixture = fixture;
+
     [Fact]
     public async Task FindReferences_OnRazorOnlyHandler_MapsBackToRazorLine()
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
 
-        WorkspaceLoader loader = new();
-        ProjectLoadResult load = await loader.LoadProjectAsync(
-            FixturePaths.SampleBlazorAppProject, cancellationToken);
-
         ReferenceFinder finder = new();
         IReadOnlyList<SymbolReferences> results =
-            await finder.FindReferencesAsync(load.Project, "ShowPreviousYearAsync", cancellationToken);
+            await finder.FindReferencesAsync(_fixture.Project, "ShowPreviousYearAsync", cancellationToken);
 
         SymbolReferences symbol = Assert.Single(results);
 

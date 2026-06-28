@@ -29,6 +29,7 @@ string fullProjectPath = Path.GetFullPath(projectPath);
 builder.Services.AddSingleton(serviceProvider =>
     new ProjectSession(fullProjectPath, serviceProvider.GetRequiredService<ILogger<ProjectSession>>()));
 builder.Services.AddSingleton<ReferenceFinder>();
+builder.Services.AddSingleton<SymbolNavigator>();
 builder.Services
     .AddMcpServer()
     .WithStdioServerTransport()

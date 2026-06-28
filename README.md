@@ -80,6 +80,9 @@ Tools:
 | Tool | Description |
 | --- | --- |
 | `find_references` | All references to a symbol (by name), including those in source-generated code, each mapped back to its original location and tagged `handwritten` or `generated`. |
+| `go_to_definition` | Declaration location(s) of a symbol (by name). |
+| `find_implementations` | Implementations of an interface or abstract member (by name). |
+| `type_hierarchy` | Base types and derived types of a type (by name). |
 
 ## Testing
 

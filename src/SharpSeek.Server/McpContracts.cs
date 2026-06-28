@@ -17,6 +17,34 @@ internal sealed record FindReferencesResult(
         [.. symbol.References.Select(LocationDto.From)]);
 }
 
+/// <summary>The MCP-facing result for a symbol and a set of locations relevant to a query.</summary>
+internal sealed record SymbolLocationsResult(string Symbol, IReadOnlyList<LocationDto> Locations)
+{
+    public static SymbolLocationsResult From(SymbolLocations symbol) => new(
+        symbol.SymbolDisplay,
+        [.. symbol.Locations.Select(LocationDto.From)]);
+}
+
+/// <summary>A type reference with its declaration location (null for metadata-only types).</summary>
+internal sealed record TypeReferenceDto(string Type, LocationDto? Location)
+{
+    public static TypeReferenceDto From(TypeReference type) => new(
+        type.Display,
+        type.Location is null ? null : LocationDto.From(type.Location));
+}
+
+/// <summary>The MCP-facing base/derived type hierarchy for a type.</summary>
+internal sealed record TypeHierarchyResult(
+    string Type,
+    IReadOnlyList<TypeReferenceDto> BaseTypes,
+    IReadOnlyList<TypeReferenceDto> DerivedTypes)
+{
+    public static TypeHierarchyResult From(TypeHierarchy hierarchy) => new(
+        hierarchy.TypeDisplay,
+        [.. hierarchy.BaseTypes.Select(TypeReferenceDto.From)],
+        [.. hierarchy.DerivedTypes.Select(TypeReferenceDto.From)]);
+}
+
 /// <summary>A single location in the MCP result.</summary>
 /// <param name="File">The original file path (generated hits are mapped back to their source).</param>
 /// <param name="Line">1-based line number.</param>

@@ -1,6 +1,5 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.FindSymbols;
-using Microsoft.CodeAnalysis.Text;
 
 namespace SharpSeek.Engine;
 
@@ -67,16 +66,7 @@ public sealed class ReferenceFinder
         string symbolName,
         CancellationToken cancellationToken = default)
     {
-        // Hand-written documents have their file paths registered on the project; anything else
-        // a location resolves to (a generated tree) is therefore source-generated.
-        HashSet<string> handwrittenPaths = new(StringComparer.OrdinalIgnoreCase);
-        foreach (Document document in project.Documents)
-        {
-            if (document.FilePath is not null)
-            {
-                handwrittenPaths.Add(document.FilePath);
-            }
-        }
+        HashSet<string> handwrittenPaths = LocationDescriptor.HandwrittenPaths(project);
 
         IEnumerable<ISymbol> declarations = await SymbolFinder
             .FindSourceDeclarationsAsync(project, symbolName, ignoreCase: false, cancellationToken)
@@ -87,14 +77,8 @@ public sealed class ReferenceFinder
 
         foreach (ISymbol symbol in declarations)
         {
-            List<ReferenceLocationInfo> definitions = [];
-            foreach (Location location in symbol.Locations)
-            {
-                if (location is { IsInSource: true, SourceTree: { } tree })
-                {
-                    definitions.Add(Describe(tree, location.SourceSpan, handwrittenPaths));
-                }
-            }
+            List<ReferenceLocationInfo> definitions =
+                LocationDescriptor.Definitions(symbol, handwrittenPaths);
 
             IEnumerable<ReferencedSymbol> referenced = await SymbolFinder
                 .FindReferencesAsync(symbol, solution, cancellationToken)
@@ -108,7 +92,8 @@ public sealed class ReferenceFinder
                     Location location = reference.Location;
                     if (location is { IsInSource: true, SourceTree: { } tree })
                     {
-                        references.Add(Describe(tree, location.SourceSpan, handwrittenPaths));
+                        references.Add(
+                            LocationDescriptor.Describe(tree, location.SourceSpan, handwrittenPaths));
                     }
                 }
             }
@@ -117,26 +102,5 @@ public sealed class ReferenceFinder
         }
 
         return results;
-    }
-
-    private static ReferenceLocationInfo Describe(
-        SyntaxTree tree,
-        TextSpan span,
-        HashSet<string> handwrittenPaths)
-    {
-        ReferenceOrigin origin = tree.FilePath is { } path && handwrittenPaths.Contains(path)
-            ? ReferenceOrigin.Handwritten
-            : ReferenceOrigin.Generated;
-
-        // GetMappedLineSpan honours #line directives, so a hit inside generated code is reported
-        // at its original location (for example the .razor line that declared the @onclick).
-        FileLinePositionSpan mapped = tree.GetMappedLineSpan(span);
-
-        return new ReferenceLocationInfo(
-            mapped.Path,
-            mapped.StartLinePosition.Line + 1,
-            mapped.StartLinePosition.Character + 1,
-            origin,
-            origin == ReferenceOrigin.Generated ? tree.FilePath : null);
     }
 }

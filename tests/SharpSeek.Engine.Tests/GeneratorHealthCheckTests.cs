@@ -4,20 +4,19 @@ using Xunit;
 
 namespace SharpSeek.Engine.Tests;
 
+[Collection(SampleBlazorAppCollection.Name)]
 public class GeneratorHealthCheckTests
 {
+    private readonly SampleBlazorAppFixture _fixture;
+
+    public GeneratorHealthCheckTests(SampleBlazorAppFixture fixture) => _fixture = fixture;
+
     [Fact]
-    public async Task DetectRazorGeneratorSkew_OnHealthyRazorProject_ReturnsNull()
+    public void DetectRazorGeneratorSkew_OnHealthyRazorProject_ReturnsNull()
     {
-        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
-
-        WorkspaceLoader loader = new();
-        ProjectLoadResult load = await loader.LoadProjectAsync(
-            FixturePaths.SampleBlazorAppProject, cancellationToken);
-
         // The fixture is a real Razor project whose generator runs, so the skew guard must not
         // fire — proving it does not false-positive on a working setup.
-        string? problem = GeneratorHealthCheck.DetectRazorGeneratorSkew(load.Project);
+        string? problem = GeneratorHealthCheck.DetectRazorGeneratorSkew(_fixture.Project);
 
         Assert.Null(problem);
     }
