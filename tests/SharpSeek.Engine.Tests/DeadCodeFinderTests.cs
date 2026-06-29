@@ -50,4 +50,39 @@ public class DeadCodeFinderTests
         // not reported even in the broader scope.
         Assert.DoesNotContain(unused, symbol => symbol.Display.Contains("LibraryGreeting"));
     }
+
+    [Fact]
+    public async Task FindUnusedSymbols_Private_HonorsImplicitUseAnnotations()
+    {
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        DeadCodeFinder finder = new();
+
+        IReadOnlyList<UnusedSymbol> unused =
+            await finder.FindUnusedSymbolsAsync(_fixture.Solution, DeadCodeScope.Private, cancellationToken);
+
+        // [UsedImplicitly] directly on an unreferenced private member suppresses the report.
+        Assert.DoesNotContain(unused, symbol => symbol.Display.Contains("ImplicitlyUsedDirectly"));
+
+        // A custom attribute marked [MeansImplicitlyUsed] does the same for what it decorates.
+        Assert.DoesNotContain(unused, symbol => symbol.Display.Contains("UsedThroughCustomMarker"));
+    }
+
+    [Fact]
+    public async Task FindUnusedSymbols_Solution_HonorsImplicitUseTargetsAndAssemblyPublicApi()
+    {
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        DeadCodeFinder finder = new();
+
+        IReadOnlyList<UnusedSymbol> unused =
+            await finder.FindUnusedSymbolsAsync(_fixture.Solution, DeadCodeScope.Solution, cancellationToken);
+
+        // [UsedImplicitly(WithMembers)] on the type covers its members.
+        Assert.DoesNotContain(unused, symbol => symbol.Display.Contains("MemberCoveredByWithMembers"));
+
+        // [UsedImplicitly(WithInheritors)] on an interface covers an implementor's members.
+        Assert.DoesNotContain(unused, symbol => symbol.Display.Contains("MemberCoveredByWithInheritors"));
+
+        // Assembly-level [PublicAPI] (SampleLibrary) covers the assembly's public surface.
+        Assert.DoesNotContain(unused, symbol => symbol.Display.Contains("UnusedButPublicApi"));
+    }
 }

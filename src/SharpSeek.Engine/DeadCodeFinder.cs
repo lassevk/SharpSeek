@@ -37,7 +37,10 @@ public sealed class DeadCodeFinder
     /// considered (members unused across the whole solution); those results are hints to verify,
     /// since a member may be a library's public API or reached via reflection/serialization. In
     /// both modes, virtual/abstract/override members and interface implementations are excluded
-    /// from the broader scope because they are reached indirectly.
+    /// from the broader scope because they are reached indirectly. In both scopes, members the
+    /// author has marked as implicitly used via JetBrains.Annotations
+    /// (<c>[PublicAPI]</c>, <c>[UsedImplicitly]</c>, or an attribute marked <c>[MeansImplicitlyUsed]</c>,
+    /// matched by simple attribute name) are not reported.
     /// </remarks>
     public async Task<IReadOnlyList<UnusedSymbol>> FindUnusedSymbolsAsync(
         Solution solution,
@@ -45,6 +48,8 @@ public sealed class DeadCodeFinder
         CancellationToken cancellationToken = default)
     {
         HashSet<string> handwrittenPaths = LocationDescriptor.HandwrittenPaths(solution);
+        ImplicitUsage implicitUsage = await BuildImplicitUsageAsync(solution, cancellationToken)
+            .ConfigureAwait(false);
 
         IEnumerable<ISymbol> members = await SymbolFinder
             .FindSourceDeclarationsAsync(solution, _ => true, SymbolFilter.Member, cancellationToken)
@@ -54,6 +59,13 @@ public sealed class DeadCodeFinder
         foreach (ISymbol symbol in members)
         {
             if (!IsCandidate(symbol, scope))
+            {
+                continue;
+            }
+
+            // The author may have declared, via JetBrains.Annotations, that a member is used in a
+            // way no reference search can see (reflection, DI, serialization, public API surface).
+            if (IsImplicitlyUsed(symbol, implicitUsage))
             {
                 continue;
             }
@@ -144,5 +156,180 @@ public sealed class DeadCodeFinder
         }
 
         return false;
+    }
+
+    // JetBrains.Annotations support. Attributes are matched by simple type name only (namespace- and
+    // assembly-agnostic), because projects use both the NuGet package and internal/source copies in
+    // their own namespace — Rider matches by name, and so do we.
+    private const string PublicApiAttribute = "PublicAPIAttribute";
+    private const string UsedImplicitlyAttribute = "UsedImplicitlyAttribute";
+    private const string MeansImplicitlyUsedAttribute = "MeansImplicitlyUsedAttribute";
+    private const string TargetFlagsEnum = "ImplicitUseTargetFlags";
+
+    // ImplicitUseTargetFlags: Members = 2, WithInheritors = 4 (WithMembers = Itself | Members = 3).
+    private const int MembersFlag = 2;
+    private const int WithInheritorsFlag = 4;
+
+    /// <summary>
+    /// The annotation facts gathered once per analysis: the attribute names that mark a symbol as
+    /// implicitly used (the built-in <c>UsedImplicitly</c> plus any attribute type marked
+    /// <c>[MeansImplicitlyUsed]</c>), and the assemblies carrying an assembly-level <c>[PublicAPI]</c>.
+    /// </summary>
+    private sealed record ImplicitUsage(
+        HashSet<string> UsedImplicitlyMarkers,
+        HashSet<ISymbol> PublicApiAssemblies);
+
+    private static async Task<ImplicitUsage> BuildImplicitUsageAsync(
+        Solution solution,
+        CancellationToken cancellationToken)
+    {
+        HashSet<string> markers = new(StringComparer.Ordinal) { UsedImplicitlyAttribute };
+
+        // Pre-pass: any attribute type marked [MeansImplicitlyUsed] turns into a marker itself, so a
+        // codebase's own frameworks (DI, serializers) opt in without SharpSeek hard-coding them.
+        IEnumerable<ISymbol> types = await SymbolFinder
+            .FindSourceDeclarationsAsync(solution, _ => true, SymbolFilter.Type, cancellationToken)
+            .ConfigureAwait(false);
+        foreach (INamedTypeSymbol type in types.OfType<INamedTypeSymbol>())
+        {
+            if (HasAttribute(type, MeansImplicitlyUsedAttribute))
+            {
+                markers.Add(type.Name);
+            }
+        }
+
+        HashSet<ISymbol> publicApiAssemblies = new(SymbolEqualityComparer.Default);
+        foreach (Project project in solution.Projects)
+        {
+            Compilation? compilation = await project.GetCompilationAsync(cancellationToken)
+                .ConfigureAwait(false);
+            if (compilation is not null && HasAttribute(compilation.Assembly, PublicApiAttribute))
+            {
+                publicApiAssemblies.Add(compilation.Assembly);
+            }
+        }
+
+        return new ImplicitUsage(markers, publicApiAssemblies);
+    }
+
+    private static bool IsImplicitlyUsed(ISymbol symbol, ImplicitUsage usage)
+    {
+        // A [PublicAPI] or [UsedImplicitly] (or a [MeansImplicitlyUsed]-derived) attribute directly
+        // on the member declares it as never dead.
+        if (HasAttribute(symbol, PublicApiAttribute) || HasAnyAttribute(symbol, usage.UsedImplicitlyMarkers))
+        {
+            return true;
+        }
+
+        // Assembly-level [PublicAPI] covers the public surface of that assembly (but not internal
+        // members - internal is not public API).
+        if (IsEffectivelyPublic(symbol)
+            && symbol.ContainingAssembly is { } assembly
+            && usage.PublicApiAssemblies.Contains(assembly))
+        {
+            return true;
+        }
+
+        if (symbol.ContainingType is not { } containingType)
+        {
+            return false;
+        }
+
+        // The containing type carries [UsedImplicitly(WithMembers)] -> its members are used too.
+        if (HasUsedImplicitlyTarget(containingType, usage, MembersFlag))
+        {
+            return true;
+        }
+
+        // A base type or implemented interface carries [UsedImplicitly(WithInheritors)] -> the
+        // inheritor/implementor (and so its members) are treated as used.
+        foreach (INamedTypeSymbol ancestor in BaseTypesAndInterfaces(containingType))
+        {
+            if (HasUsedImplicitlyTarget(ancestor, usage, WithInheritorsFlag))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>True if the type carries a <c>UsedImplicitly</c>-style marker whose target flags include <paramref name="flag"/>.</summary>
+    private static bool HasUsedImplicitlyTarget(INamedTypeSymbol type, ImplicitUsage usage, int flag)
+    {
+        foreach (AttributeData attribute in type.GetAttributes())
+        {
+            if (attribute.AttributeClass?.Name is { } name
+                && usage.UsedImplicitlyMarkers.Contains(name)
+                && (TargetFlags(attribute) & flag) != 0)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>Reads the <c>ImplicitUseTargetFlags</c> value of a marker attribute; defaults to <c>Itself</c>.</summary>
+    private static int TargetFlags(AttributeData attribute)
+    {
+        foreach (TypedConstant argument in attribute.ConstructorArguments)
+        {
+            if (IsTargetFlags(argument))
+            {
+                return ToInt32(argument);
+            }
+        }
+
+        foreach (KeyValuePair<string, TypedConstant> named in attribute.NamedArguments)
+        {
+            if (IsTargetFlags(named.Value))
+            {
+                return ToInt32(named.Value);
+            }
+        }
+
+        return 1; // Itself
+    }
+
+    private static bool IsTargetFlags(TypedConstant constant) =>
+        constant.Kind == TypedConstantKind.Enum
+        && string.Equals(constant.Type?.Name, TargetFlagsEnum, StringComparison.Ordinal);
+
+    private static int ToInt32(TypedConstant constant) =>
+        constant.Value is null ? 0 : Convert.ToInt32(constant.Value);
+
+    private static bool HasAttribute(ISymbol symbol, string attributeName) =>
+        symbol.GetAttributes().Any(attribute =>
+            string.Equals(attribute.AttributeClass?.Name, attributeName, StringComparison.Ordinal));
+
+    private static bool HasAnyAttribute(ISymbol symbol, HashSet<string> attributeNames) =>
+        symbol.GetAttributes().Any(attribute =>
+            attribute.AttributeClass?.Name is { } name && attributeNames.Contains(name));
+
+    private static bool IsEffectivelyPublic(ISymbol symbol)
+    {
+        for (ISymbol? current = symbol; current is not null and not INamespaceSymbol; current = current.ContainingType)
+        {
+            if (current.DeclaredAccessibility != Accessibility.Public)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static IEnumerable<INamedTypeSymbol> BaseTypesAndInterfaces(INamedTypeSymbol type)
+    {
+        for (INamedTypeSymbol? baseType = type.BaseType; baseType is not null; baseType = baseType.BaseType)
+        {
+            yield return baseType;
+        }
+
+        foreach (INamedTypeSymbol @interface in type.AllInterfaces)
+        {
+            yield return @interface;
+        }
     }
 }
