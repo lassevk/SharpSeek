@@ -71,4 +71,53 @@ public class DeclarationReaderTests
         DeclarationRange range = Assert.Single(ranges);
         Assert.EndsWith("Animals.cs", range.FilePath);
     }
+
+    [Fact]
+    public async Task GetSource_ReturnsDocCommentAttributeAndBody()
+    {
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        DeclarationReader reader = new();
+
+        IReadOnlyList<DeclarationSource> sources =
+            await reader.GetSourceAsync(_fixture.Solution, "DeclarationSamples.Add", cancellationToken: cancellationToken);
+
+        DeclarationSource source = Assert.Single(sources);
+        Assert.Equal(ReferenceOrigin.Handwritten, source.Origin);
+        Assert.False(source.Truncated);
+        Assert.StartsWith("/// <summary>", source.Source.TrimStart());
+        Assert.Contains("[Obsolete(", source.Source);
+        Assert.Contains("return sum;", source.Source);
+    }
+
+    [Fact]
+    public async Task GetSource_GeneratedMember_ReturnsInMemoryGeneratedText()
+    {
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        DeclarationReader reader = new();
+
+        // BuildRenderTree is declared only in the Razor-generated partial of Calendar; its body
+        // lives in source-generated code the caller's own file reader cannot open.
+        IReadOnlyList<DeclarationSource> sources =
+            await reader.GetSourceAsync(_fixture.Solution, "Calendar.BuildRenderTree", cancellationToken: cancellationToken);
+
+        DeclarationSource source = Assert.Single(sources);
+        Assert.Equal(ReferenceOrigin.Generated, source.Origin);
+        Assert.EndsWith("Calendar_razor.g.cs", source.GeneratedFilePath);
+        Assert.Contains("BuildRenderTree", source.Source);
+        Assert.Contains("__builder.OpenElement", source.Source);
+    }
+
+    [Fact]
+    public async Task GetSource_RespectsLineCapWithTruncationMarker()
+    {
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        DeclarationReader reader = new();
+
+        IReadOnlyList<DeclarationSource> sources =
+            await reader.GetSourceAsync(_fixture.Solution, "DeclarationSamples.Add", maxLines: 2, cancellationToken: cancellationToken);
+
+        DeclarationSource source = Assert.Single(sources);
+        Assert.True(source.Truncated);
+        Assert.Contains("truncated", source.Source);
+    }
 }

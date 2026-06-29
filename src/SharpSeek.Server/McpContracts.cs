@@ -81,6 +81,36 @@ internal sealed record SymbolRangeDto(
         range.GeneratedFilePath);
 }
 
+/// <summary>The MCP-facing source text of a single symbol declaration.</summary>
+/// <param name="Symbol">The resolved symbol this declaration belongs to.</param>
+/// <param name="File">The file the declaration refers to (generated declarations mapped back where possible).</param>
+/// <param name="StartLine">1-based first line (includes a leading XML-doc comment when present).</param>
+/// <param name="EndLine">1-based last line.</param>
+/// <param name="Origin"><c>"handwritten"</c> or <c>"generated"</c>.</param>
+/// <param name="GeneratedFile">For generated declarations, the generated document the text was read from.</param>
+/// <param name="Source">The declaration's source text.</param>
+/// <param name="Truncated">Whether the source was cut off at the line cap.</param>
+internal sealed record SymbolSourceDto(
+    string Symbol,
+    string File,
+    int StartLine,
+    int EndLine,
+    string Origin,
+    string? GeneratedFile,
+    string Source,
+    bool Truncated)
+{
+    public static SymbolSourceDto From(DeclarationSource source) => new(
+        source.SymbolDisplay,
+        source.FilePath,
+        source.StartLine,
+        source.EndLine,
+        source.Origin == ReferenceOrigin.Generated ? "generated" : "handwritten",
+        source.GeneratedFilePath,
+        source.Source,
+        source.Truncated);
+}
+
 /// <summary>The MCP-facing result for a symbol search hit.</summary>
 internal sealed record SymbolMatchDto(string Symbol, string Kind, LocationDto? Location)
 {

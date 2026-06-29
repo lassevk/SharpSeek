@@ -128,6 +128,7 @@ Tools:
 | `find_references` | All references to a symbol (by name), including those in source-generated code, each mapped back to its original location and tagged `handwritten` or `generated`. |
 | `go_to_definition` | Declaration location(s) of a symbol (by name). |
 | `get_symbol_range` | Full declaration line range (start/end) of a symbol so you can read just that span; name may be simple, `Type.Member`, or fully-qualified. Covers leading XML-doc comment, attributes, signature, and body. |
+| `get_symbol_source` | The declaration's source text directly (one round trip), including source-generated bodies (e.g. Razor `BuildRenderTree`) that a file reader cannot open. Same naming/coverage as `get_symbol_range`. |
 | `find_implementations` | Implementations of an interface or abstract member (by name). |
 | `type_hierarchy` | Base types and derived types of a type (by name). |
 | `search_symbols` | Workspace symbol search by name pattern (substring / camel-case). |
