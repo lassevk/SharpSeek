@@ -34,6 +34,7 @@ builder.Services.AddSingleton(serviceProvider =>
     new ProjectSession(explicitFullPath, serviceProvider.GetRequiredService<ILogger<ProjectSession>>()));
 builder.Services.AddSingleton<ReferenceFinder>();
 builder.Services.AddSingleton<SymbolNavigator>();
+builder.Services.AddSingleton<DeclarationReader>();
 builder.Services.AddSingleton<SymbolExplorer>();
 builder.Services.AddSingleton<DeadCodeFinder>();
 builder.Services.AddSingleton<DiagnosticReader>();

@@ -52,6 +52,29 @@ internal sealed class CodeNavigationTools
         return [.. results.Select(SymbolLocationsResult.From)];
     }
 
+    [McpServerTool(Name = "get_symbol_range")]
+    [Description(
+        "Get the full declaration line range of a C# symbol so you can read just that span " +
+        "yourself. Returns, per declaration, the file and 1-based start/end line; read offset=" +
+        "startLine, limit=endLine-startLine+1 to get exactly the member. The range covers the " +
+        "leading XML-doc comment (when present), attributes, signature, and body. The name can be " +
+        "a simple name, Type.Member, or a fully-qualified name to disambiguate; overloads and " +
+        "partial declarations each return their own entry. Generated declarations are mapped back " +
+        "to source where #line allows and tagged generated.")]
+    public static async Task<IReadOnlyList<SymbolRangeDto>> GetSymbolRangeAsync(
+        ProjectSession session,
+        DeclarationReader reader,
+        [Description("Symbol name: simple (\"Add\"), Type.Member (\"DeclarationSamples.Add\"), or fully-qualified.")]
+        string symbolName,
+        CancellationToken cancellationToken)
+    {
+        Solution solution = await session.GetSolutionAsync(cancellationToken);
+        IReadOnlyList<DeclarationRange> results =
+            await reader.GetRangesAsync(solution, symbolName, cancellationToken);
+
+        return [.. results.Select(SymbolRangeDto.From)];
+    }
+
     [McpServerTool(Name = "find_implementations")]
     [Description(
         "Find the implementations of an interface or abstract member (by name). For an interface " +
