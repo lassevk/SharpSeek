@@ -48,3 +48,36 @@ public sealed class ConstantWriteSamples
         UsageLabel = external;  // not a constant - no assigned-constant captured
     }
 }
+
+// Fixtures for the syntactic-role metadata on find_references (#11). RoleTarget is mentioned in the
+// distinctive forms (nameof/typeof/construction, plus a plain type reference), RoleMethod as both an
+// invocation and a method group, and RoleMarkerAttribute as an attribute application.
+[RoleMarker]
+public sealed class RoleTarget
+{
+    public void RoleMethod()
+    {
+    }
+}
+
+public sealed class RoleMarkerAttribute : System.Attribute
+{
+}
+
+public sealed class RoleSamples
+{
+    public void Probe(RoleTarget target)
+    {
+        Use(nameof(RoleTarget));            // role: nameof
+        Use(typeof(RoleTarget));            // role: typeof
+        Use(new RoleTarget());              // role: construction
+
+        target.RoleMethod();                // role: invocation
+        System.Action handler = target.RoleMethod; // role: methodGroup
+        handler();
+    }
+
+    private static void Use(object value)
+    {
+    }
+}

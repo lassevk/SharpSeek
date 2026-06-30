@@ -54,6 +54,33 @@ public enum SymbolUsage
 }
 
 /// <summary>
+/// The syntactic role a reference was mentioned in, where it is one of a few distinctive forms.
+/// An ordinary reference (a plain read/write, or a type used as a variable/parameter type) has no
+/// role (<c>null</c>). Only the cheap, unambiguous roles are reported today; richer roles (cref,
+/// cast, pattern, base-type, ...) are tracked as future work.
+/// </summary>
+public enum ReferenceRole
+{
+    /// <summary>The symbol is invoked: <c>M(...)</c>.</summary>
+    Invocation,
+
+    /// <summary>A method used as a value/delegate without being invoked: <c>Action a = M;</c>.</summary>
+    MethodGroup,
+
+    /// <summary>A type being constructed: <c>new X(...)</c>.</summary>
+    Construction,
+
+    /// <summary>A compile-time name, not a real use: <c>nameof(X)</c>.</summary>
+    NameOf,
+
+    /// <summary>A type literal / reflection use: <c>typeof(X)</c>.</summary>
+    TypeOf,
+
+    /// <summary>An attribute application: <c>[X]</c>.</summary>
+    Attribute,
+}
+
+/// <summary>
 /// The compile-time constant assigned at a write reference. Produced only for a simple assignment
 /// whose right-hand side is a constant the compiler already resolved. <see cref="Value"/> may be
 /// <c>null</c> to mean the constant <c>null</c> was assigned; the absence of an
@@ -75,6 +102,7 @@ public sealed record AssignedConstant(object? Value);
 /// <param name="AssignedConstant">
 /// For a simple-assignment write, the constant value assigned (if any); otherwise <c>null</c>.
 /// </param>
+/// <param name="Role">The syntactic role the symbol was mentioned in, or <c>null</c> for an ordinary reference.</param>
 /// <param name="IsImplicit">
 /// Whether the reference is implicit (no explicit mention in source, e.g. a <c>foreach</c> binding
 /// to <c>GetEnumerator</c> or an implicit <c>Deconstruct</c>).
@@ -88,6 +116,7 @@ public sealed record ReferenceInfo(
     ReferenceLocationInfo Location,
     SymbolUsage? Usage,
     AssignedConstant? AssignedConstant,
+    ReferenceRole? Role,
     bool IsImplicit,
     string? Alias,
     string? CandidateReason);
@@ -159,13 +188,15 @@ public sealed class ReferenceFinder
                         LocationDescriptor.Describe(tree, location.SourceSpan, handwrittenPaths);
 
                     ReferenceUsage usage = await ClassifyUsageAsync(
-                        reference.Document, tree, location.SourceSpan, modelCache, cancellationToken)
+                        reference.Document, tree, location.SourceSpan, symbol.Kind, modelCache,
+                        cancellationToken)
                         .ConfigureAwait(false);
 
                     references.Add(new ReferenceInfo(
                         info,
                         usage.Usage,
                         usage.AssignedConstant,
+                        usage.Role,
                         reference.IsImplicit,
                         reference.Alias?.Name,
                         reference.CandidateReason == CandidateReason.None
@@ -185,6 +216,7 @@ public sealed class ReferenceFinder
         Document? document,
         SyntaxTree tree,
         TextSpan span,
+        SymbolKind symbolKind,
         Dictionary<DocumentId, (SemanticModel Model, SyntaxNode Root)?> cache,
         CancellationToken cancellationToken)
     {
@@ -203,7 +235,7 @@ public sealed class ReferenceFinder
         }
 
         return entry is { } value
-            ? UsageClassifier.Classify(value.Model, value.Root, span, cancellationToken)
+            ? UsageClassifier.Classify(value.Model, value.Root, span, symbolKind, cancellationToken)
             : default;
     }
 }

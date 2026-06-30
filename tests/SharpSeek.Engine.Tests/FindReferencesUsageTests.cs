@@ -89,4 +89,54 @@ public class FindReferencesUsageTests
         // for a written null.
         Assert.Single(symbol.References, r => r.AssignedConstant is null);
     }
+
+    [Fact]
+    public async Task FindReferences_ClassifiesSyntacticRolesOfAType()
+    {
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        ReferenceFinder finder = new();
+
+        IReadOnlyList<SymbolReferences> results =
+            await finder.FindReferencesAsync(_fixture.Solution, "RoleTarget", cancellationToken);
+
+        SymbolReferences symbol = Assert.Single(results);
+
+        Assert.Single(symbol.References, r => r.Role == ReferenceRole.NameOf);
+        Assert.Single(symbol.References, r => r.Role == ReferenceRole.TypeOf);
+        Assert.Single(symbol.References, r => r.Role == ReferenceRole.Construction);
+        // The parameter type `RoleTarget target` is an ordinary type reference with no special role.
+        Assert.Single(symbol.References, r => r.Role is null);
+    }
+
+    [Fact]
+    public async Task FindReferences_DistinguishesInvocationFromMethodGroup()
+    {
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        ReferenceFinder finder = new();
+
+        IReadOnlyList<SymbolReferences> results =
+            await finder.FindReferencesAsync(_fixture.Solution, "RoleMethod", cancellationToken);
+
+        SymbolReferences symbol = Assert.Single(results);
+        Assert.Equal("Method", symbol.SymbolKind);
+
+        Assert.Single(symbol.References, r => r.Role == ReferenceRole.Invocation);
+        Assert.Single(symbol.References, r => r.Role == ReferenceRole.MethodGroup);
+    }
+
+    [Fact]
+    public async Task FindReferences_ClassifiesAttributeApplication()
+    {
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        ReferenceFinder finder = new();
+
+        IReadOnlyList<SymbolReferences> results =
+            await finder.FindReferencesAsync(_fixture.Solution, "RoleMarkerAttribute", cancellationToken);
+
+        SymbolReferences symbol = Assert.Single(results);
+
+        // The only reference is the [RoleMarker] application on RoleTarget.
+        ReferenceInfo reference = Assert.Single(symbol.References);
+        Assert.Equal(ReferenceRole.Attribute, reference.Role);
+    }
 }

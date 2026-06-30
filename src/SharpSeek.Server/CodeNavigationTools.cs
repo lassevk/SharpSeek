@@ -24,7 +24,9 @@ internal sealed class CodeNavigationTools
         "properties, locals, parameters) and absent for method calls or type references. For a " +
         "write of a constant value, 'assignedConstant' holds that value (e.g. true, 42, or the " +
         "constant null) so a query like 'where is this set to null' is answered directly; it is " +
-        "absent - never null - when the assigned value is not a constant. 'implicit', 'alias', and " +
+        "absent - never null - when the assigned value is not a constant. 'role' names the " +
+        "distinctive syntactic forms - nameof, typeof, construction (new X), attribute, invocation, " +
+        "methodGroup - and is absent for an ordinary reference. 'implicit', 'alias', and " +
         "'candidateReason' appear only when applicable. The resolved symbol's 'kind' (Method, " +
         "Field, Property, ...) is included.")]
     public static async Task<IReadOnlyList<FindReferencesResult>> FindReferencesAsync(
