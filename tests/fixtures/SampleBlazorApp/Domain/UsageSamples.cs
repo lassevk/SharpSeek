@@ -30,3 +30,21 @@ public sealed class UsageSamples
 
     private static void Bump(ref int value) => value++;
 }
+
+// Fixtures for the constant-value capture on writes (#12). A property is assigned both constants
+// and a non-constant so the "set to X" answer can be asserted - and so the absence of a constant is
+// never mistaken for a written null.
+public sealed class ConstantWriteSamples
+{
+    public bool UsageFlag { get; set; }
+
+    public string? UsageLabel { get; set; }
+
+    public void Assign(string? external)
+    {
+        UsageFlag = true;       // constant: true
+        UsageLabel = null;      // constant: null
+        UsageLabel = "fixed";   // constant: "fixed"
+        UsageLabel = external;  // not a constant - no assigned-constant captured
+    }
+}

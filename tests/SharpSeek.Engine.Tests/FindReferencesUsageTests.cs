@@ -48,4 +48,45 @@ public class FindReferencesUsageTests
         // Read: `Consume(_usageField)`.
         Assert.Equal(1, symbol.References.Count(r => r.Usage == SymbolUsage.Read));
     }
+
+    [Fact]
+    public async Task FindReferences_CapturesConstantWrite()
+    {
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        ReferenceFinder finder = new();
+
+        IReadOnlyList<SymbolReferences> results =
+            await finder.FindReferencesAsync(_fixture.Solution, "UsageFlag", cancellationToken);
+
+        SymbolReferences symbol = Assert.Single(results);
+
+        // UsageFlag = true; is the only reference and its assigned constant is captured.
+        ReferenceInfo write = Assert.Single(symbol.References);
+        Assert.Equal(SymbolUsage.Write, write.Usage);
+        Assert.NotNull(write.AssignedConstant);
+        Assert.Equal(true, write.AssignedConstant.Value);
+    }
+
+    [Fact]
+    public async Task FindReferences_DistinguishesConstantNullFromUnknownAssignment()
+    {
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        ReferenceFinder finder = new();
+
+        IReadOnlyList<SymbolReferences> results =
+            await finder.FindReferencesAsync(_fixture.Solution, "UsageLabel", cancellationToken);
+
+        SymbolReferences symbol = Assert.Single(results);
+        Assert.Equal(3, symbol.References.Count);
+
+        // `UsageLabel = null` - a constant whose value is null (present wrapper, null value).
+        Assert.Single(symbol.References, r => r.AssignedConstant is { Value: null });
+
+        // `UsageLabel = "fixed"` - a constant string.
+        Assert.Single(symbol.References, r => r.AssignedConstant is { Value: "fixed" });
+
+        // `UsageLabel = external` - NOT a constant; no wrapper at all, so it can never be mistaken
+        // for a written null.
+        Assert.Single(symbol.References, r => r.AssignedConstant is null);
+    }
 }
