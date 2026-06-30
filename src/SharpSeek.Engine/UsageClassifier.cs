@@ -16,7 +16,7 @@ internal static class UsageClassifier
     /// <summary>
     /// Classifies the reference at <paramref name="span"/> within <paramref name="root"/>.
     /// </summary>
-    public static SymbolUsage? Classify(
+    public static ReferenceUsage Classify(
         SemanticModel semanticModel,
         SyntaxNode root,
         TextSpan span,
@@ -28,7 +28,7 @@ internal static class UsageClassifier
         IOperation? operation = semanticModel.GetOperation(reference, cancellationToken);
         if (operation is null || !IsDataReference(operation))
         {
-            return null;
+            return default;
         }
 
         return Classify(operation);
@@ -62,7 +62,7 @@ internal static class UsageClassifier
             or IParameterReferenceOperation
             or IEventReferenceOperation;
 
-    private static SymbolUsage Classify(IOperation operation)
+    private static ReferenceUsage Classify(IOperation operation)
     {
         IOperation reference = operation;
         IOperation? parent = operation.Parent;
@@ -77,23 +77,42 @@ internal static class UsageClassifier
 
         return parent switch
         {
+            // Only a plain assignment has a single, well-defined assigned value to report. Compound
+            // assignment, increment, and ref/out modify in place, so no assigned-constant is given.
             ISimpleAssignmentOperation assignment when ReferenceEquals(assignment.Target, reference) =>
-                SymbolUsage.Write,
+                new ReferenceUsage(SymbolUsage.Write, ConstantOf(assignment.Value)),
             ICompoundAssignmentOperation compound when ReferenceEquals(compound.Target, reference) =>
-                SymbolUsage.ReadWrite,
+                new ReferenceUsage(SymbolUsage.ReadWrite, null),
             ICoalesceAssignmentOperation coalesce when ReferenceEquals(coalesce.Target, reference) =>
-                SymbolUsage.ReadWrite,
+                new ReferenceUsage(SymbolUsage.ReadWrite, null),
             IDeconstructionAssignmentOperation deconstruction
                 when ReferenceEquals(deconstruction.Target, reference) =>
-                SymbolUsage.Write,
-            IIncrementOrDecrementOperation => SymbolUsage.ReadWrite,
-            IArgumentOperation argument => argument.Parameter?.RefKind switch
-            {
-                RefKind.Out => SymbolUsage.Write,
-                RefKind.Ref => SymbolUsage.ReadWrite,
-                _ => SymbolUsage.Read,
-            },
-            _ => SymbolUsage.Read,
+                new ReferenceUsage(SymbolUsage.Write, null),
+            IIncrementOrDecrementOperation => new ReferenceUsage(SymbolUsage.ReadWrite, null),
+            IArgumentOperation argument => new ReferenceUsage(
+                argument.Parameter?.RefKind switch
+                {
+                    RefKind.Out => SymbolUsage.Write,
+                    RefKind.Ref => SymbolUsage.ReadWrite,
+                    _ => SymbolUsage.Read,
+                },
+                null),
+            _ => new ReferenceUsage(SymbolUsage.Read, null),
         };
     }
+
+    // Reads the constant the compiler already resolved for the assigned expression. Returns null
+    // (no constant) when the value is not a compile-time constant - deliberately distinct from a
+    // constant whose value is null, so "unknown" is never reported as a written null.
+    private static AssignedConstant? ConstantOf(IOperation value)
+    {
+        Optional<object?> constant = value.ConstantValue;
+        return constant.HasValue ? new AssignedConstant(constant.Value) : null;
+    }
 }
+
+/// <summary>
+/// The classification of a single reference: how it is used and, for a simple-assignment write,
+/// the constant value assigned (if the assigned expression is a compile-time constant).
+/// </summary>
+internal readonly record struct ReferenceUsage(SymbolUsage? Usage, AssignedConstant? AssignedConstant);

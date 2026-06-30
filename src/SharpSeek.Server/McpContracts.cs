@@ -284,6 +284,11 @@ internal sealed record LocationDto(
 /// hand-written symbol stays terse.
 /// </summary>
 /// <param name="Usage"><c>"read"</c>, <c>"write"</c>, or <c>"readwrite"</c> for data symbols; absent otherwise.</param>
+/// <param name="AssignedConstant">
+/// For a write whose assigned value is a compile-time constant, the assigned value (e.g. <c>true</c>,
+/// <c>42</c>, the constant <c>null</c>). Absent when the assigned value is not a constant, so its
+/// absence must never be read as "set to null".
+/// </param>
 /// <param name="Implicit"><c>true</c> when the reference is implicit (e.g. a <c>foreach</c> enumerator); absent otherwise.</param>
 /// <param name="Alias">The alias name when referenced via <c>using X = ...</c>; absent otherwise.</param>
 /// <param name="CandidateReason">Why the reference is only a candidate bind; absent for exact references.</param>
@@ -294,6 +299,7 @@ internal sealed record ReferenceDto(
     string Origin,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? GeneratedFile,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Usage,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] AssignedConstantDto? AssignedConstant,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? Implicit,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Alias,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? CandidateReason)
@@ -311,7 +317,18 @@ internal sealed record ReferenceDto(
             SymbolUsage.ReadWrite => "readwrite",
             _ => null,
         },
+        reference.AssignedConstant is { } constant ? AssignedConstantDto.From(constant) : null,
         reference.IsImplicit ? true : null,
         reference.Alias,
         reference.CandidateReason);
+}
+
+/// <summary>
+/// The constant value assigned at a write reference. This wrapper is present only when the assigned
+/// value is a known constant; <see cref="Value"/> is then the value and may legitimately be
+/// <c>null</c> (the constant <c>null</c>). A missing wrapper means "not a constant", never "null".
+/// </summary>
+internal sealed record AssignedConstantDto(object? Value)
+{
+    public static AssignedConstantDto From(AssignedConstant constant) => new(constant.Value);
 }
