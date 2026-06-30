@@ -289,6 +289,11 @@ internal sealed record LocationDto(
 /// <c>42</c>, the constant <c>null</c>). Absent when the assigned value is not a constant, so its
 /// absence must never be read as "set to null".
 /// </param>
+/// <param name="Role">
+/// The syntactic role the symbol was mentioned in (<c>"nameof"</c>, <c>"typeof"</c>,
+/// <c>"construction"</c>, <c>"attribute"</c>, <c>"invocation"</c>, <c>"methodGroup"</c>); absent for
+/// an ordinary reference.
+/// </param>
 /// <param name="Implicit"><c>true</c> when the reference is implicit (e.g. a <c>foreach</c> enumerator); absent otherwise.</param>
 /// <param name="Alias">The alias name when referenced via <c>using X = ...</c>; absent otherwise.</param>
 /// <param name="CandidateReason">Why the reference is only a candidate bind; absent for exact references.</param>
@@ -300,6 +305,7 @@ internal sealed record ReferenceDto(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? GeneratedFile,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Usage,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] AssignedConstantDto? AssignedConstant,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Role,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? Implicit,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Alias,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? CandidateReason)
@@ -318,6 +324,16 @@ internal sealed record ReferenceDto(
             _ => null,
         },
         reference.AssignedConstant is { } constant ? AssignedConstantDto.From(constant) : null,
+        reference.Role switch
+        {
+            ReferenceRole.Invocation => "invocation",
+            ReferenceRole.MethodGroup => "methodGroup",
+            ReferenceRole.Construction => "construction",
+            ReferenceRole.NameOf => "nameof",
+            ReferenceRole.TypeOf => "typeof",
+            ReferenceRole.Attribute => "attribute",
+            _ => null,
+        },
         reference.IsImplicit ? true : null,
         reference.Alias,
         reference.CandidateReason);

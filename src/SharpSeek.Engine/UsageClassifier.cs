@@ -6,10 +6,10 @@ using Microsoft.CodeAnalysis.Text;
 namespace SharpSeek.Engine;
 
 /// <summary>
-/// Classifies how a data symbol (field, property, local, parameter, event) is used at a single
-/// reference - read, written, or both - using the Roslyn <see cref="IOperation"/> tree. Returns
-/// <c>null</c> when read/write does not apply, for example a method invocation, a type reference,
-/// or a <c>nameof</c> / <c>typeof</c> mention.
+/// Classifies a single reference from the syntax node and <see cref="IOperation"/> the reference
+/// search already produced - no extra semantic queries. Covers read/write usage of data symbols
+/// (field, property, local, parameter, event), the constant assigned at a write, and the syntactic
+/// role the symbol was mentioned in (nameof/typeof/construction/attribute/invocation/method-group).
 /// </summary>
 internal static class UsageClassifier
 {
@@ -20,19 +20,71 @@ internal static class UsageClassifier
         SemanticModel semanticModel,
         SyntaxNode root,
         TextSpan span,
+        SymbolKind symbolKind,
         CancellationToken cancellationToken)
     {
         SyntaxNode identifier = root.FindNode(span, getInnermostNodeForTie: true);
         SyntaxNode reference = AscendToReferenceExpression(identifier);
 
+        ReferenceRole? role = ClassifyRole(reference, symbolKind);
+
+        SymbolUsage? usage = null;
+        AssignedConstant? constant = null;
         IOperation? operation = semanticModel.GetOperation(reference, cancellationToken);
-        if (operation is null || !IsDataReference(operation))
+        if (operation is not null && IsDataReference(operation))
         {
-            return default;
+            (usage, constant) = ClassifyUsage(operation);
         }
 
-        return Classify(operation);
+        return new ReferenceUsage(usage, constant, role);
     }
+
+    // ---- Syntactic role: how the symbol was mentioned ----
+
+    // Detected from the syntax node alone (cheap, no semantic queries). Only the unambiguous roles
+    // are reported; an ordinary reference (a plain read/write, or a type used as a variable type)
+    // returns null. Richer roles (cref, cast, pattern, base-type, ...) are tracked separately.
+    private static ReferenceRole? ClassifyRole(SyntaxNode reference, SymbolKind symbolKind)
+    {
+        if (IsInsideNameOf(reference))
+        {
+            return ReferenceRole.NameOf;
+        }
+
+        if (reference.FirstAncestorOrSelf<TypeOfExpressionSyntax>() is { } typeOf
+            && typeOf.Type.Span.Contains(reference.Span))
+        {
+            return ReferenceRole.TypeOf;
+        }
+
+        if (reference.FirstAncestorOrSelf<AttributeSyntax>() is { } attribute
+            && attribute.Name.Span.Contains(reference.Span))
+        {
+            return ReferenceRole.Attribute;
+        }
+
+        if (reference.FirstAncestorOrSelf<ObjectCreationExpressionSyntax>() is { } creation
+            && creation.Type.Span.Contains(reference.Span))
+        {
+            return ReferenceRole.Construction;
+        }
+
+        if (symbolKind == SymbolKind.Method)
+        {
+            return reference.Parent is InvocationExpressionSyntax invocation
+                && invocation.Expression == reference
+                    ? ReferenceRole.Invocation
+                    : ReferenceRole.MethodGroup;
+        }
+
+        return null;
+    }
+
+    // True when the reference sits inside a nameof(...) argument - a compile-time name, not a use.
+    private static bool IsInsideNameOf(SyntaxNode reference) =>
+        reference.FirstAncestorOrSelf<InvocationExpressionSyntax>() is
+            { Expression: IdentifierNameSyntax { Identifier.ValueText: "nameof" } } invocation
+        && invocation.ArgumentList.Span.Contains(reference.Span);
 
     // The reference span points at the identifier token. For a member access such as `x.Prop`, the
     // operation we want is the whole `x.Prop` expression (the property/field reference), not the
@@ -62,7 +114,9 @@ internal static class UsageClassifier
             or IParameterReferenceOperation
             or IEventReferenceOperation;
 
-    private static ReferenceUsage Classify(IOperation operation)
+    // ---- Read/write usage of a data symbol ----
+
+    private static (SymbolUsage Usage, AssignedConstant? Constant) ClassifyUsage(IOperation operation)
     {
         IOperation reference = operation;
         IOperation? parent = operation.Parent;
@@ -80,16 +134,16 @@ internal static class UsageClassifier
             // Only a plain assignment has a single, well-defined assigned value to report. Compound
             // assignment, increment, and ref/out modify in place, so no assigned-constant is given.
             ISimpleAssignmentOperation assignment when ReferenceEquals(assignment.Target, reference) =>
-                new ReferenceUsage(SymbolUsage.Write, ConstantOf(assignment.Value)),
+                (SymbolUsage.Write, ConstantOf(assignment.Value)),
             ICompoundAssignmentOperation compound when ReferenceEquals(compound.Target, reference) =>
-                new ReferenceUsage(SymbolUsage.ReadWrite, null),
+                (SymbolUsage.ReadWrite, null),
             ICoalesceAssignmentOperation coalesce when ReferenceEquals(coalesce.Target, reference) =>
-                new ReferenceUsage(SymbolUsage.ReadWrite, null),
+                (SymbolUsage.ReadWrite, null),
             IDeconstructionAssignmentOperation deconstruction
                 when ReferenceEquals(deconstruction.Target, reference) =>
-                new ReferenceUsage(SymbolUsage.Write, null),
-            IIncrementOrDecrementOperation => new ReferenceUsage(SymbolUsage.ReadWrite, null),
-            IArgumentOperation argument => new ReferenceUsage(
+                (SymbolUsage.Write, null),
+            IIncrementOrDecrementOperation => (SymbolUsage.ReadWrite, null),
+            IArgumentOperation argument => (
                 argument.Parameter?.RefKind switch
                 {
                     RefKind.Out => SymbolUsage.Write,
@@ -97,7 +151,7 @@ internal static class UsageClassifier
                     _ => SymbolUsage.Read,
                 },
                 null),
-            _ => new ReferenceUsage(SymbolUsage.Read, null),
+            _ => (SymbolUsage.Read, null),
         };
     }
 
@@ -112,7 +166,10 @@ internal static class UsageClassifier
 }
 
 /// <summary>
-/// The classification of a single reference: how it is used and, for a simple-assignment write,
-/// the constant value assigned (if the assigned expression is a compile-time constant).
+/// The classification of a single reference: how it is used (read/write), the constant assigned at
+/// a simple-assignment write, and the syntactic role it was mentioned in.
 /// </summary>
-internal readonly record struct ReferenceUsage(SymbolUsage? Usage, AssignedConstant? AssignedConstant);
+internal readonly record struct ReferenceUsage(
+    SymbolUsage? Usage,
+    AssignedConstant? AssignedConstant,
+    ReferenceRole? Role);
