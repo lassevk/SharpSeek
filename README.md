@@ -125,7 +125,7 @@ Tools:
 
 | Tool | Description |
 | --- | --- |
-| `find_references` | All references to a symbol (by name), including those in source-generated code, each mapped back to its original location and tagged `handwritten` or `generated`. Each reference also carries how it was used where Roslyn already knows it: `usage` (`read`/`write`/`readwrite` for fields, properties, locals, parameters), plus `implicit`, `alias`, and `candidateReason` when they apply; the symbol's `kind` is reported too. |
+| `find_references` | All references to a symbol (by name), including those in source-generated code, each mapped back to its original location and tagged `handwritten` or `generated`. Each reference also carries how it was used where Roslyn already knows it: `usage` (`read`/`write`/`readwrite` for fields, properties, locals, parameters), `assignedConstant` for writes of a constant value (so "set to `true`/`null`" is answerable directly; absent — never null — when the assigned value is not constant), plus `implicit`, `alias`, and `candidateReason` when they apply; the symbol's `kind` is reported too. |
 | `go_to_definition` | Declaration location(s) of a symbol (by name). |
 | `get_symbol_range` | Full declaration line range (start/end) of a symbol so you can read just that span; name may be simple, `Type.Member`, or fully-qualified. Covers leading XML-doc comment, attributes, signature, and body. |
 | `get_symbol_source` | The declaration's source text directly (one round trip), including source-generated bodies (e.g. Razor `BuildRenderTree`) that a file reader cannot open. Same naming/coverage as `get_symbol_range`. |
