@@ -145,6 +145,7 @@ Tools:
 | `get_generated_document` | The C# a generator produced for a file (e.g. Razor `BuildRenderTree`). |
 | `list_generators` | Which source generators ran and how many documents each produced. |
 | `activate_project` | Switch the analysed solution/project to a given path or directory. |
+| `server_info` | The server's own build identity — the git commit it was built from, dirty flag, build time, version. Compare `commit` to `git rev-parse HEAD` to confirm the running build; needs no activated project. |
 
 ## Testing
 

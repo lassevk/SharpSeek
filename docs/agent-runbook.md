@@ -31,6 +31,12 @@ Derive `<repo>` from the actual clone location on this machine; do not assume a 
 After changing `ServerInstructions` or any server behaviour, the server must be **re-published and
 re-registered/restarted** for the change to take effect in live sessions.
 
+**Verify which build is running.** The server embeds the git commit it was built from. Call the
+`server_info` tool (or run the executable with the `version` argument) and compare its `commit` to
+`git rev-parse HEAD` in this repo — equal means the running binary is built from the checked-out
+source. `dirty: true` means it was built from an uncommitted working tree. Prefer this over inferring
+the build from whether a new feature appears in tool output.
+
 ## Using SharpSeek in other projects
 
 In a session against an arbitrary .NET/C# project where the `sharpseek` MCP is connected, the

@@ -4,6 +4,22 @@ using SharpSeek.Engine;
 
 namespace SharpSeek.Server;
 
+/// <summary>The MCP-facing build identity of the running server.</summary>
+internal sealed record ServerInfoDto(
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Commit,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ShortCommit,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? Dirty,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? BuildTimeUtc,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Version)
+{
+    public static ServerInfoDto From(ServerBuildInfo info) => new(
+        info.Commit,
+        info.ShortCommit,
+        info.Dirty,
+        info.BuildTimeUtc?.ToString("o"),
+        info.Version);
+}
+
 /// <summary>
 /// The MCP-facing result for a single resolved symbol. Kept separate from the engine's types so
 /// the wire contract is explicit and stable.

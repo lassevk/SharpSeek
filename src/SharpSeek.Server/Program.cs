@@ -5,6 +5,20 @@ using Microsoft.Extensions.Logging;
 using SharpSeek.Engine;
 using SharpSeek.Server;
 
+// The "version" subcommand prints this server's build identity (the git commit it was built from)
+// without going through MCP - the CLI equivalent of the server_info tool, handy for verifying a
+// deployed build on a machine.
+if (args.Length > 0 && (string.Equals(args[0], "version", StringComparison.Ordinal)
+    || string.Equals(args[0], "--version", StringComparison.Ordinal)))
+{
+    ServerBuildInfo info = BuildInfo.Current;
+    Console.WriteLine($"commit:  {info.Commit ?? "unknown"}");
+    Console.WriteLine($"dirty:   {(info.Dirty is { } dirty ? dirty.ToString().ToLowerInvariant() : "unknown")}");
+    Console.WriteLine($"built:   {info.BuildTimeUtc?.ToString("o") ?? "unknown"}");
+    Console.WriteLine($"version: {info.Version ?? "unknown"}");
+    return 0;
+}
+
 // The "diagnose" subcommand runs find_references from the CLI for manual checks against a
 // project on disk. Anything else starts the MCP server over stdio.
 if (args.Length > 0 && string.Equals(args[0], "diagnose", StringComparison.Ordinal))
