@@ -54,12 +54,26 @@ public enum SymbolUsage
 }
 
 /// <summary>
+/// The compile-time constant assigned at a write reference. Produced only for a simple assignment
+/// whose right-hand side is a constant the compiler already resolved. <see cref="Value"/> may be
+/// <c>null</c> to mean the constant <c>null</c> was assigned; the absence of an
+/// <see cref="AssignedConstant"/> altogether means the assigned value is not a constant (a method
+/// call, another variable, an expression) - so "we don't know what was written" is never confused
+/// with "null was written".
+/// </summary>
+/// <param name="Value">The boxed constant value (an <see cref="int"/>, <see cref="string"/>, <see cref="bool"/>, ...), or <c>null</c> for the constant <c>null</c>.</param>
+public sealed record AssignedConstant(object? Value);
+
+/// <summary>
 /// A single reference to a symbol, with the metadata Roslyn already derived about how it was used.
 /// </summary>
 /// <param name="Location">Where the reference is, mapped back to original source.</param>
 /// <param name="Usage">
 /// Read/write classification for data symbols; <c>null</c> when it does not apply (method calls,
 /// type references, <c>nameof</c>/<c>typeof</c>, etc.).
+/// </param>
+/// <param name="AssignedConstant">
+/// For a simple-assignment write, the constant value assigned (if any); otherwise <c>null</c>.
 /// </param>
 /// <param name="IsImplicit">
 /// Whether the reference is implicit (no explicit mention in source, e.g. a <c>foreach</c> binding
@@ -73,6 +87,7 @@ public enum SymbolUsage
 public sealed record ReferenceInfo(
     ReferenceLocationInfo Location,
     SymbolUsage? Usage,
+    AssignedConstant? AssignedConstant,
     bool IsImplicit,
     string? Alias,
     string? CandidateReason);
@@ -143,13 +158,14 @@ public sealed class ReferenceFinder
                     ReferenceLocationInfo info =
                         LocationDescriptor.Describe(tree, location.SourceSpan, handwrittenPaths);
 
-                    SymbolUsage? usage = await ClassifyUsageAsync(
+                    ReferenceUsage usage = await ClassifyUsageAsync(
                         reference.Document, tree, location.SourceSpan, modelCache, cancellationToken)
                         .ConfigureAwait(false);
 
                     references.Add(new ReferenceInfo(
                         info,
-                        usage,
+                        usage.Usage,
+                        usage.AssignedConstant,
                         reference.IsImplicit,
                         reference.Alias?.Name,
                         reference.CandidateReason == CandidateReason.None
@@ -165,7 +181,7 @@ public sealed class ReferenceFinder
         return results;
     }
 
-    private static async Task<SymbolUsage?> ClassifyUsageAsync(
+    private static async Task<ReferenceUsage> ClassifyUsageAsync(
         Document? document,
         SyntaxTree tree,
         TextSpan span,
@@ -174,7 +190,7 @@ public sealed class ReferenceFinder
     {
         if (document is null)
         {
-            return null;
+            return default;
         }
 
         if (!cache.TryGetValue(document.Id, out (SemanticModel Model, SyntaxNode Root)? entry))
@@ -188,6 +204,6 @@ public sealed class ReferenceFinder
 
         return entry is { } value
             ? UsageClassifier.Classify(value.Model, value.Root, span, cancellationToken)
-            : null;
+            : default;
     }
 }

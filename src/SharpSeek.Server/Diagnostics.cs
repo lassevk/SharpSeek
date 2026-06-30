@@ -97,6 +97,11 @@ internal static class Diagnostics
             tags.Add(usage.ToString().ToLowerInvariant());
         }
 
+        if (reference.AssignedConstant is { } constant)
+        {
+            tags.Add($"= {Render(constant.Value)}");
+        }
+
         if (reference.IsImplicit)
         {
             tags.Add("implicit");
@@ -114,4 +119,11 @@ internal static class Diagnostics
 
         return tags.Count == 0 ? line : $"{line}  {{{string.Join(", ", tags)}}}";
     }
+
+    private static string Render(object? value) => value switch
+    {
+        null => "null",
+        string text => $"\"{text}\"",
+        _ => value.ToString() ?? "",
+    };
 }
