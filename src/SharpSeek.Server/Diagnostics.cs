@@ -102,6 +102,11 @@ internal static class Diagnostics
             tags.Add($"= {Render(constant.Value)}");
         }
 
+        if (reference.AssignedType is { } assignedType)
+        {
+            tags.Add($": {assignedType}");
+        }
+
         if (reference.Role is { } role)
         {
             tags.Add(role.ToString());

@@ -102,6 +102,10 @@ public sealed record AssignedConstant(object? Value);
 /// <param name="AssignedConstant">
 /// For a simple-assignment write, the constant value assigned (if any); otherwise <c>null</c>.
 /// </param>
+/// <param name="AssignedType">
+/// For a simple-assignment write, the static type of the assigned expression (implicit conversions
+/// peeled), e.g. <c>int</c> vs <c>int?</c>; otherwise <c>null</c>.
+/// </param>
 /// <param name="Role">The syntactic role the symbol was mentioned in, or <c>null</c> for an ordinary reference.</param>
 /// <param name="IsImplicit">
 /// Whether the reference is implicit (no explicit mention in source, e.g. a <c>foreach</c> binding
@@ -116,6 +120,7 @@ public sealed record ReferenceInfo(
     ReferenceLocationInfo Location,
     SymbolUsage? Usage,
     AssignedConstant? AssignedConstant,
+    string? AssignedType,
     ReferenceRole? Role,
     bool IsImplicit,
     string? Alias,
@@ -196,6 +201,7 @@ public sealed class ReferenceFinder
                         info,
                         usage.Usage,
                         usage.AssignedConstant,
+                        usage.AssignedType,
                         usage.Role,
                         reference.IsImplicit,
                         reference.Alias?.Name,
