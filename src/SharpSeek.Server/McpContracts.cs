@@ -289,6 +289,12 @@ internal sealed record LocationDto(
 /// <c>42</c>, the constant <c>null</c>). Absent when the assigned value is not a constant, so its
 /// absence must never be read as "set to null".
 /// </param>
+/// <param name="AssignedType">
+/// For a write of a constant or non-constant value, the static type of the assigned expression with
+/// implicit conversions peeled (e.g. <c>"int"</c> vs <c>"int?"</c>). Reliable for value-type
+/// nullability; for reference types it is just the type and carries no NRT guarantee. Absent for
+/// non-writes.
+/// </param>
 /// <param name="Role">
 /// The syntactic role the symbol was mentioned in (<c>"nameof"</c>, <c>"typeof"</c>,
 /// <c>"construction"</c>, <c>"attribute"</c>, <c>"invocation"</c>, <c>"methodGroup"</c>); absent for
@@ -305,6 +311,7 @@ internal sealed record ReferenceDto(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? GeneratedFile,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Usage,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] AssignedConstantDto? AssignedConstant,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? AssignedType,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Role,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? Implicit,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Alias,
@@ -324,6 +331,7 @@ internal sealed record ReferenceDto(
             _ => null,
         },
         reference.AssignedConstant is { } constant ? AssignedConstantDto.From(constant) : null,
+        reference.AssignedType,
         reference.Role switch
         {
             ReferenceRole.Invocation => "invocation",

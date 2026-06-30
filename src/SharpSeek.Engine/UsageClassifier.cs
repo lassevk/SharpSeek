@@ -30,13 +30,14 @@ internal static class UsageClassifier
 
         SymbolUsage? usage = null;
         AssignedConstant? constant = null;
+        string? assignedType = null;
         IOperation? operation = semanticModel.GetOperation(reference, cancellationToken);
         if (operation is not null && IsDataReference(operation))
         {
-            (usage, constant) = ClassifyUsage(operation);
+            (usage, constant, assignedType) = ClassifyUsage(operation);
         }
 
-        return new ReferenceUsage(usage, constant, role);
+        return new ReferenceUsage(usage, constant, assignedType, role);
     }
 
     // ---- Syntactic role: how the symbol was mentioned ----
@@ -116,7 +117,8 @@ internal static class UsageClassifier
 
     // ---- Read/write usage of a data symbol ----
 
-    private static (SymbolUsage Usage, AssignedConstant? Constant) ClassifyUsage(IOperation operation)
+    private static (SymbolUsage Usage, AssignedConstant? Constant, string? AssignedType) ClassifyUsage(
+        IOperation operation)
     {
         IOperation reference = operation;
         IOperation? parent = operation.Parent;
@@ -131,18 +133,19 @@ internal static class UsageClassifier
 
         return parent switch
         {
-            // Only a plain assignment has a single, well-defined assigned value to report. Compound
-            // assignment, increment, and ref/out modify in place, so no assigned-constant is given.
+            // Only a plain assignment has a single, well-defined assigned value, so the assigned
+            // constant and type are reported here only. Compound assignment, increment, and ref/out
+            // modify in place.
             ISimpleAssignmentOperation assignment when ReferenceEquals(assignment.Target, reference) =>
-                (SymbolUsage.Write, ConstantOf(assignment.Value)),
+                (SymbolUsage.Write, ConstantOf(assignment.Value), AssignedTypeOf(assignment.Value)),
             ICompoundAssignmentOperation compound when ReferenceEquals(compound.Target, reference) =>
-                (SymbolUsage.ReadWrite, null),
+                (SymbolUsage.ReadWrite, null, null),
             ICoalesceAssignmentOperation coalesce when ReferenceEquals(coalesce.Target, reference) =>
-                (SymbolUsage.ReadWrite, null),
+                (SymbolUsage.ReadWrite, null, null),
             IDeconstructionAssignmentOperation deconstruction
                 when ReferenceEquals(deconstruction.Target, reference) =>
-                (SymbolUsage.Write, null),
-            IIncrementOrDecrementOperation => (SymbolUsage.ReadWrite, null),
+                (SymbolUsage.Write, null, null),
+            IIncrementOrDecrementOperation => (SymbolUsage.ReadWrite, null, null),
             IArgumentOperation argument => (
                 argument.Parameter?.RefKind switch
                 {
@@ -150,8 +153,9 @@ internal static class UsageClassifier
                     RefKind.Ref => SymbolUsage.ReadWrite,
                     _ => SymbolUsage.Read,
                 },
+                null,
                 null),
-            _ => (SymbolUsage.Read, null),
+            _ => (SymbolUsage.Read, null, null),
         };
     }
 
@@ -163,6 +167,19 @@ internal static class UsageClassifier
         Optional<object?> constant = value.ConstantValue;
         return constant.HasValue ? new AssignedConstant(constant.Value) : null;
     }
+
+    // The static type of the assigned expression. An implicit conversion is peeled so the *source*
+    // type shows through (the int in `int? n = GetInt()`, the DateTime in `object o = GetDate()`)
+    // rather than the target/property type. This is the declared type only - no method bodies are
+    // inspected - so for a value type it reliably tells nullable (int?) from non-nullable (int).
+    private static string? AssignedTypeOf(IOperation value)
+    {
+        IOperation expression = value is IConversionOperation { IsImplicit: true } conversion
+            ? conversion.Operand
+            : value;
+
+        return expression.Type?.ToDisplayString();
+    }
 }
 
 /// <summary>
@@ -172,4 +189,5 @@ internal static class UsageClassifier
 internal readonly record struct ReferenceUsage(
     SymbolUsage? Usage,
     AssignedConstant? AssignedConstant,
+    string? AssignedType,
     ReferenceRole? Role);

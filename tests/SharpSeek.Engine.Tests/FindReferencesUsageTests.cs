@@ -91,6 +91,24 @@ public class FindReferencesUsageTests
     }
 
     [Fact]
+    public async Task FindReferences_CapturesAssignedTypeDistinguishingNullableValueTypes()
+    {
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        ReferenceFinder finder = new();
+
+        IReadOnlyList<SymbolReferences> results =
+            await finder.FindReferencesAsync(_fixture.Solution, "Threshold", cancellationToken);
+
+        SymbolReferences symbol = Assert.Single(results);
+        Assert.Equal(2, symbol.References.Count);
+
+        // Assigned from a non-nullable int-returning method: provably never null.
+        Assert.Single(symbol.References, r => r.AssignedType == "int");
+        // Assigned from a nullable int-returning method: possibly null.
+        Assert.Single(symbol.References, r => r.AssignedType == "int?");
+    }
+
+    [Fact]
     public async Task FindReferences_ClassifiesSyntacticRolesOfAType()
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
