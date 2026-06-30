@@ -81,3 +81,21 @@ public sealed class RoleSamples
     {
     }
 }
+
+// Fixtures for the assigned-type metadata on writes (#12). A nullable-int property is assigned from
+// a non-nullable-int-returning method (the value can never be null - assignedType "int") and from a
+// nullable-int-returning method (unknown - assignedType "int?").
+public sealed class AssignedTypeSamples
+{
+    public int? Threshold { get; set; }
+
+    public void Assign()
+    {
+        Threshold = ReturnsInt();           // assignedType: int  (provably non-null)
+        Threshold = ReturnsNullableInt();   // assignedType: int? (possibly null)
+    }
+
+    private static int ReturnsInt() => 0;
+
+    private static int? ReturnsNullableInt() => null;
+}
