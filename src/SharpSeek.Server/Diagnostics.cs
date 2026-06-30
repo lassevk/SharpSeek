@@ -57,7 +57,7 @@ internal static class Diagnostics
 
         foreach (SymbolReferences result in results)
         {
-            Console.WriteLine($"Symbol: {result.SymbolDisplay}");
+            Console.WriteLine($"Symbol: {result.SymbolDisplay} [{result.SymbolKind}]");
 
             Console.WriteLine($"  Definitions ({result.Definitions.Count}):");
             foreach (ReferenceLocationInfo definition in result.Definitions)
@@ -66,7 +66,7 @@ internal static class Diagnostics
             }
 
             Console.WriteLine($"  References ({result.References.Count}):");
-            foreach (ReferenceLocationInfo reference in result.References)
+            foreach (ReferenceInfo reference in result.References)
             {
                 Console.WriteLine($"    {Format(reference)}");
             }
@@ -85,5 +85,33 @@ internal static class Diagnostics
         }
 
         return $"[handwritten] {where}";
+    }
+
+    private static string Format(ReferenceInfo reference)
+    {
+        string line = Format(reference.Location);
+
+        List<string> tags = [];
+        if (reference.Usage is { } usage)
+        {
+            tags.Add(usage.ToString().ToLowerInvariant());
+        }
+
+        if (reference.IsImplicit)
+        {
+            tags.Add("implicit");
+        }
+
+        if (reference.Alias is { } alias)
+        {
+            tags.Add($"alias={alias}");
+        }
+
+        if (reference.CandidateReason is { } candidateReason)
+        {
+            tags.Add($"candidate={candidateReason}");
+        }
+
+        return tags.Count == 0 ? line : $"{line}  {{{string.Join(", ", tags)}}}";
     }
 }

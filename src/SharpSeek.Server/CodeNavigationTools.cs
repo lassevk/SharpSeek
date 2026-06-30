@@ -19,7 +19,11 @@ internal sealed class CodeNavigationTools
         "Find all references to a C# symbol by its name across the loaded solution, including " +
         "references that live inside source-generated code (for example a Blazor @onclick " +
         "handler wired up in generated BuildRenderTree code). Each reference is mapped back to " +
-        "its original source location and tagged as handwritten or generated.")]
+        "its original source location and tagged as handwritten or generated. References also " +
+        "carry how the symbol was used: 'usage' is read/write/readwrite for data symbols (fields, " +
+        "properties, locals, parameters) and absent for method calls or type references; 'implicit', " +
+        "'alias', and 'candidateReason' appear only when applicable. The resolved symbol's 'kind' " +
+        "(Method, Field, Property, ...) is included.")]
     public static async Task<IReadOnlyList<FindReferencesResult>> FindReferencesAsync(
         ProjectSession session,
         ReferenceFinder finder,

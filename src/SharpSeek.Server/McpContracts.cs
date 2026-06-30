@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 using SharpSeek.Engine;
 
 namespace SharpSeek.Server;
@@ -8,13 +10,15 @@ namespace SharpSeek.Server;
 /// </summary>
 internal sealed record FindReferencesResult(
     string Symbol,
+    string Kind,
     IReadOnlyList<LocationDto> Definitions,
-    IReadOnlyList<LocationDto> References)
+    IReadOnlyList<ReferenceDto> References)
 {
     public static FindReferencesResult From(SymbolReferences symbol) => new(
         symbol.SymbolDisplay,
+        symbol.SymbolKind,
         [.. symbol.Definitions.Select(LocationDto.From)],
-        [.. symbol.References.Select(LocationDto.From)]);
+        [.. symbol.References.Select(ReferenceDto.From)]);
 }
 
 /// <summary>The MCP-facing result for a symbol and a set of locations relevant to a query.</summary>
@@ -272,4 +276,42 @@ internal sealed record LocationDto(
         location.Column,
         location.Origin == ReferenceOrigin.Generated ? "generated" : "handwritten",
         location.GeneratedFilePath);
+}
+
+/// <summary>
+/// A single reference hit: where the symbol is used plus how Roslyn classified that use. The
+/// optional fields are omitted from the output when they do not apply, so a plain read of a
+/// hand-written symbol stays terse.
+/// </summary>
+/// <param name="Usage"><c>"read"</c>, <c>"write"</c>, or <c>"readwrite"</c> for data symbols; absent otherwise.</param>
+/// <param name="Implicit"><c>true</c> when the reference is implicit (e.g. a <c>foreach</c> enumerator); absent otherwise.</param>
+/// <param name="Alias">The alias name when referenced via <c>using X = ...</c>; absent otherwise.</param>
+/// <param name="CandidateReason">Why the reference is only a candidate bind; absent for exact references.</param>
+internal sealed record ReferenceDto(
+    string File,
+    int Line,
+    int Column,
+    string Origin,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? GeneratedFile,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Usage,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? Implicit,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Alias,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? CandidateReason)
+{
+    public static ReferenceDto From(ReferenceInfo reference) => new(
+        reference.Location.FilePath,
+        reference.Location.Line,
+        reference.Location.Column,
+        reference.Location.Origin == ReferenceOrigin.Generated ? "generated" : "handwritten",
+        reference.Location.GeneratedFilePath,
+        reference.Usage switch
+        {
+            SymbolUsage.Read => "read",
+            SymbolUsage.Write => "write",
+            SymbolUsage.ReadWrite => "readwrite",
+            _ => null,
+        },
+        reference.IsImplicit ? true : null,
+        reference.Alias,
+        reference.CandidateReason);
 }
