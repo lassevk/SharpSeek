@@ -19,6 +19,17 @@ if (args.Length > 0 && (string.Equals(args[0], "version", StringComparison.Ordin
     return 0;
 }
 
+// The "check-update" subcommand reports whether this build is behind origin/main, for manual
+// checks (the same comparison the server runs at startup to nudge the agent).
+if (args.Length > 0 && string.Equals(args[0], "check-update", StringComparison.Ordinal))
+{
+    UpdateStatus status = await UpdateCheck.GetStatusAsync(BuildInfo.Current.Commit, CancellationToken.None);
+    Console.WriteLine($"local: {status.LocalCommit ?? "unknown"}");
+    Console.WriteLine($"main:  {status.RemoteCommit ?? "unknown (offline, rate-limited, or disabled)"}");
+    Console.WriteLine($"state: {(status.UpdateAvailable ? "UPDATE AVAILABLE" : "up to date")}");
+    return 0;
+}
+
 // The "diagnose" subcommand runs find_references from the CLI for manual checks against a
 // project on disk. Anything else starts the MCP server over stdio.
 if (args.Length > 0 && string.Equals(args[0], "diagnose", StringComparison.Ordinal))
@@ -55,6 +66,12 @@ builder.Services.AddSingleton<DiagnosticReader>();
 builder.Services.AddSingleton<CallHierarchyAnalyzer>();
 builder.Services.AddSingleton<ProjectInspector>();
 builder.Services.AddSingleton<DependencyAnalyzer>();
+
+// Check (cached, bounded, opt-out) whether this build is behind origin/main; if so, nudge the agent
+// via ServerInstructions to remind the user to update SharpSeek.
+string? updateNotice = UpdateCheck.Notice(
+    await UpdateCheck.GetStatusAsync(BuildInfo.Current.Commit, CancellationToken.None));
+
 builder.Services
     .AddMcpServer(options => options.ServerInstructions =
         "SharpSeek is a Roslyn-based code navigation server for .NET/C#. It analyses ONE .NET " +
@@ -71,7 +88,8 @@ builder.Services
         "navigation or analysis need they do not cover, or an output shape that is awkward for " +
         "what the user is doing, raise it with the user as a candidate SharpSeek improvement (and, " +
         "with the user's agreement, file it as an issue on the SharpSeek repository) rather than " +
-        "silently working around it.")
+        "silently working around it."
+        + (updateNotice is null ? "" : $"\n\n{updateNotice}"))
     .WithStdioServerTransport()
     .WithToolsFromAssembly();
 
