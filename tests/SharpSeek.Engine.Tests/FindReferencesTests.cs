@@ -30,9 +30,12 @@ public class FindReferencesTests
         // The only usage is the @onclick, which lives in generated BuildRenderTree code and must
         // be mapped back to the .razor markup line (Calendar.razor line 3). This is the case a
         // generic LSP misses.
-        ReferenceLocationInfo reference = Assert.Single(symbol.References);
-        Assert.Equal(ReferenceOrigin.Generated, reference.Origin);
-        Assert.EndsWith("Calendar.razor", reference.FilePath);
-        Assert.Equal(3, reference.Line);
+        ReferenceInfo reference = Assert.Single(symbol.References);
+        Assert.Equal(ReferenceOrigin.Generated, reference.Location.Origin);
+        Assert.EndsWith("Calendar.razor", reference.Location.FilePath);
+        Assert.Equal(3, reference.Location.Line);
+
+        // It is a method group wired to an event handler, not a data read/write.
+        Assert.Null(reference.Usage);
     }
 }

@@ -1,5 +1,6 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.FindSymbols;
+using Microsoft.CodeAnalysis.Text;
 
 namespace SharpSeek.Engine;
 
@@ -38,15 +39,56 @@ public sealed record ReferenceLocationInfo(
     string? GeneratedFilePath);
 
 /// <summary>
+/// How a data symbol (field, property, local, parameter, event) is used at a reference.
+/// </summary>
+public enum SymbolUsage
+{
+    /// <summary>The value is read but not modified.</summary>
+    Read,
+
+    /// <summary>The value is assigned but its prior value is not read (e.g. <c>x = 1</c>, <c>out</c>).</summary>
+    Write,
+
+    /// <summary>The value is both read and written (e.g. <c>x += 1</c>, <c>x++</c>, <c>ref</c>).</summary>
+    ReadWrite,
+}
+
+/// <summary>
+/// A single reference to a symbol, with the metadata Roslyn already derived about how it was used.
+/// </summary>
+/// <param name="Location">Where the reference is, mapped back to original source.</param>
+/// <param name="Usage">
+/// Read/write classification for data symbols; <c>null</c> when it does not apply (method calls,
+/// type references, <c>nameof</c>/<c>typeof</c>, etc.).
+/// </param>
+/// <param name="IsImplicit">
+/// Whether the reference is implicit (no explicit mention in source, e.g. a <c>foreach</c> binding
+/// to <c>GetEnumerator</c> or an implicit <c>Deconstruct</c>).
+/// </param>
+/// <param name="Alias">The alias name when the symbol was referenced through a <c>using X = ...</c> alias; otherwise <c>null</c>.</param>
+/// <param name="CandidateReason">
+/// When the reference is a candidate (not an exact bind), the reason Roslyn reported; otherwise
+/// <c>null</c>.
+/// </param>
+public sealed record ReferenceInfo(
+    ReferenceLocationInfo Location,
+    SymbolUsage? Usage,
+    bool IsImplicit,
+    string? Alias,
+    string? CandidateReason);
+
+/// <summary>
 /// The references found for a single resolved symbol.
 /// </summary>
 /// <param name="SymbolDisplay">A human-readable description of the symbol.</param>
+/// <param name="SymbolKind">The kind of symbol (e.g. <c>Method</c>, <c>Field</c>, <c>Property</c>).</param>
 /// <param name="Definitions">Where the symbol is declared.</param>
 /// <param name="References">Where the symbol is referenced.</param>
 public sealed record SymbolReferences(
     string SymbolDisplay,
+    string SymbolKind,
     IReadOnlyList<ReferenceLocationInfo> Definitions,
-    IReadOnlyList<ReferenceLocationInfo> References);
+    IReadOnlyList<ReferenceInfo> References);
 
 /// <summary>
 /// Finds references to a symbol across a loaded project, including references that live inside
@@ -83,23 +125,69 @@ public sealed class ReferenceFinder
                 .FindReferencesAsync(symbol, solution, cancellationToken)
                 .ConfigureAwait(false);
 
-            List<ReferenceLocationInfo> references = [];
+            // Semantic models are reused across references in the same document; the compilation is
+            // already built by the reference search above, so classifying usage is incremental.
+            Dictionary<DocumentId, (SemanticModel Model, SyntaxNode Root)?> modelCache = [];
+
+            List<ReferenceInfo> references = [];
             foreach (ReferencedSymbol referencedSymbol in referenced)
             {
                 foreach (ReferenceLocation reference in referencedSymbol.Locations)
                 {
                     Location location = reference.Location;
-                    if (location is { IsInSource: true, SourceTree: { } tree })
+                    if (location is not { IsInSource: true, SourceTree: { } tree })
                     {
-                        references.Add(
-                            LocationDescriptor.Describe(tree, location.SourceSpan, handwrittenPaths));
+                        continue;
                     }
+
+                    ReferenceLocationInfo info =
+                        LocationDescriptor.Describe(tree, location.SourceSpan, handwrittenPaths);
+
+                    SymbolUsage? usage = await ClassifyUsageAsync(
+                        reference.Document, tree, location.SourceSpan, modelCache, cancellationToken)
+                        .ConfigureAwait(false);
+
+                    references.Add(new ReferenceInfo(
+                        info,
+                        usage,
+                        reference.IsImplicit,
+                        reference.Alias?.Name,
+                        reference.CandidateReason == CandidateReason.None
+                            ? null
+                            : reference.CandidateReason.ToString()));
                 }
             }
 
-            results.Add(new SymbolReferences(symbol.ToDisplayString(), definitions, references));
+            results.Add(new SymbolReferences(
+                symbol.ToDisplayString(), symbol.Kind.ToString(), definitions, references));
         }
 
         return results;
+    }
+
+    private static async Task<SymbolUsage?> ClassifyUsageAsync(
+        Document? document,
+        SyntaxTree tree,
+        TextSpan span,
+        Dictionary<DocumentId, (SemanticModel Model, SyntaxNode Root)?> cache,
+        CancellationToken cancellationToken)
+    {
+        if (document is null)
+        {
+            return null;
+        }
+
+        if (!cache.TryGetValue(document.Id, out (SemanticModel Model, SyntaxNode Root)? entry))
+        {
+            SemanticModel? model =
+                await document.GetSemanticModelAsync(cancellationToken).ConfigureAwait(false);
+            SyntaxNode? root = await tree.GetRootAsync(cancellationToken).ConfigureAwait(false);
+            entry = model is not null && root is not null ? (model, root) : null;
+            cache[document.Id] = entry;
+        }
+
+        return entry is { } value
+            ? UsageClassifier.Classify(value.Model, value.Root, span, cancellationToken)
+            : null;
     }
 }
