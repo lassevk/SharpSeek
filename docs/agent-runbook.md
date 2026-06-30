@@ -37,6 +37,11 @@ re-registered/restarted** for the change to take effect in live sessions.
 source. `dirty: true` means it was built from an uncommitted working tree. Prefer this over inferring
 the build from whether a new feature appears in tool output.
 
+The server also does this automatically: at startup it compares its build commit to `origin/main`
+(cached, ~6h) and, when behind, appends an update notice to its `ServerInstructions` so the agent
+reminds the user to rebuild/redeploy. Set `SHARPSEEK_NO_UPDATE_CHECK` to disable it, or run the
+executable with `check-update` to see the comparison manually.
+
 ## Using SharpSeek in other projects
 
 In a session against an arbitrary .NET/C# project where the `sharpseek` MCP is connected, the
