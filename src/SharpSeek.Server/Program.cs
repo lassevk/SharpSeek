@@ -50,7 +50,14 @@ builder.Services
         "not apply to non-.NET languages (e.g. JavaScript, Python, Go); if the current project is " +
         "not .NET/C#, do not use them. A key strength is that references are found even inside " +
         "source-generated code (e.g. Blazor / Razor) and mapped back to the original source. Use " +
-        "the activate_project tool to point the server at a different solution or project.")
+        "the activate_project tool to point the server at a different solution or project. " +
+        "When working in a .NET/C# codebase, prefer these tools over plain text search for " +
+        "navigation, references, type/call hierarchy, and dead-code questions: they are semantic " +
+        "and see source-generated code. Be critical of how well they fit the task - if you hit a " +
+        "navigation or analysis need they do not cover, or an output shape that is awkward for " +
+        "what the user is doing, raise it with the user as a candidate SharpSeek improvement (and, " +
+        "with the user's agreement, file it as an issue on the SharpSeek repository) rather than " +
+        "silently working around it.")
     .WithStdioServerTransport()
     .WithToolsFromAssembly();
 
