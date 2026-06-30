@@ -1,4 +1,10 @@
-﻿# GitHub access
+﻿# Agent runbook
+
+Cross-machine setup notes and "how to use SharpSeek" guidance for the agent live in
+[`docs/agent-runbook.md`](docs/agent-runbook.md). Read it when setting up SharpSeek on a fresh
+clone/machine, or when deciding how to use SharpSeek in another project.
+
+# GitHub access
 
 This project lives on GitHub, there is a mcp-tool for accessing additional github areas, such as issues.
 This tool is named github-lassevk.
