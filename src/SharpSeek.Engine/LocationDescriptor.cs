@@ -28,15 +28,19 @@ internal static class LocationDescriptor
         return paths;
     }
 
+    /// <summary>Classifies a syntax tree as hand-written or source-generated.</summary>
+    public static ReferenceOrigin OriginOf(SyntaxTree tree, HashSet<string> handwrittenPaths) =>
+        tree.FilePath is { } path && handwrittenPaths.Contains(path)
+            ? ReferenceOrigin.Handwritten
+            : ReferenceOrigin.Generated;
+
     /// <summary>Describes a span within a syntax tree, mapping it back to its original location.</summary>
     public static ReferenceLocationInfo Describe(
         SyntaxTree tree,
         TextSpan span,
         HashSet<string> handwrittenPaths)
     {
-        ReferenceOrigin origin = tree.FilePath is { } path && handwrittenPaths.Contains(path)
-            ? ReferenceOrigin.Handwritten
-            : ReferenceOrigin.Generated;
+        ReferenceOrigin origin = OriginOf(tree, handwrittenPaths);
 
         // GetMappedLineSpan honours #line directives, so a hit inside generated code is reported
         // at its original location (for example the .razor line that declared the @onclick).

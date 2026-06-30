@@ -52,6 +52,54 @@ internal sealed class CodeNavigationTools
         return [.. results.Select(SymbolLocationsResult.From)];
     }
 
+    [McpServerTool(Name = "get_symbol_range")]
+    [Description(
+        "Get the full declaration line range of a C# symbol so you can read just that span " +
+        "yourself. Returns, per declaration, the file and 1-based start/end line; read offset=" +
+        "startLine, limit=endLine-startLine+1 to get exactly the member. The range covers the " +
+        "leading XML-doc comment (when present), attributes, signature, and body. The name can be " +
+        "a simple name, Type.Member, or a fully-qualified name to disambiguate; overloads and " +
+        "partial declarations each return their own entry. Generated declarations are mapped back " +
+        "to source where #line allows and tagged generated.")]
+    public static async Task<IReadOnlyList<SymbolRangeDto>> GetSymbolRangeAsync(
+        ProjectSession session,
+        DeclarationReader reader,
+        [Description("Symbol name: simple (\"Add\"), Type.Member (\"DeclarationSamples.Add\"), or fully-qualified.")]
+        string symbolName,
+        CancellationToken cancellationToken)
+    {
+        Solution solution = await session.GetSolutionAsync(cancellationToken);
+        IReadOnlyList<DeclarationRange> results =
+            await reader.GetRangesAsync(solution, symbolName, cancellationToken);
+
+        return [.. results.Select(SymbolRangeDto.From)];
+    }
+
+    [McpServerTool(Name = "get_symbol_source")]
+    [Description(
+        "Get the source text of a C# symbol's declaration(s) in one call. Unlike get_symbol_range " +
+        "(which returns only a line range for you to read the file yourself), this returns the " +
+        "code directly - and it can return source-generated code (e.g. a Blazor BuildRenderTree " +
+        "body) that your own file reader cannot open. Each declaration covers the leading XML-doc " +
+        "comment (when present), attributes, signature, and body. The name can be a simple name, " +
+        "Type.Member, or a fully-qualified name; overloads and partial declarations each return " +
+        "their own entry. Prefer get_symbol_range when you intend to edit hand-written code.")]
+    public static async Task<IReadOnlyList<SymbolSourceDto>> GetSymbolSourceAsync(
+        ProjectSession session,
+        DeclarationReader reader,
+        [Description("Symbol name: simple (\"Add\"), Type.Member (\"DeclarationSamples.Add\"), or fully-qualified.")]
+        string symbolName,
+        [Description("Max lines of source per declaration (default 400; 0 or less means no cap).")]
+        int maxLines = DeclarationReader.DefaultMaxLines,
+        CancellationToken cancellationToken = default)
+    {
+        Solution solution = await session.GetSolutionAsync(cancellationToken);
+        IReadOnlyList<DeclarationSource> results =
+            await reader.GetSourceAsync(solution, symbolName, maxLines, cancellationToken);
+
+        return [.. results.Select(SymbolSourceDto.From)];
+    }
+
     [McpServerTool(Name = "find_implementations")]
     [Description(
         "Find the implementations of an interface or abstract member (by name). For an interface " +
