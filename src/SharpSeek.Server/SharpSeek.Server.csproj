@@ -20,4 +20,29 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <!-- Capture the git commit (and dirty state) this server is built from and embed it as assembly
+       metadata, so server_info can report which source revision the running binary came from. Runs
+       before assembly-info generation; falls back silently to "unknown" when git is unavailable
+       (e.g. building from an archive). -->
+  <Target Name="EmbedGitBuildInfo" BeforeTargets="GetAssemblyAttributes">
+    <Exec Command="git -C &quot;$(MSBuildProjectDirectory)&quot; rev-parse HEAD"
+          ConsoleToMSBuild="true" ContinueOnError="true"
+          StandardOutputImportance="low" StandardErrorImportance="low">
+      <Output TaskParameter="ConsoleOutput" PropertyName="_GitCommit" />
+    </Exec>
+    <Exec Command="git -C &quot;$(MSBuildProjectDirectory)&quot; status --porcelain --untracked-files=no"
+          ConsoleToMSBuild="true" ContinueOnError="true"
+          StandardOutputImportance="low" StandardErrorImportance="low">
+      <Output TaskParameter="ConsoleOutput" PropertyName="_GitStatus" />
+    </Exec>
+    <PropertyGroup>
+      <_GitDirty Condition="'$(_GitStatus)' != ''">true</_GitDirty>
+      <_GitDirty Condition="'$(_GitStatus)' == ''">false</_GitDirty>
+    </PropertyGroup>
+    <ItemGroup Condition="'$(_GitCommit)' != ''">
+      <AssemblyMetadata Include="GitCommit" Value="$(_GitCommit)" />
+      <AssemblyMetadata Include="GitDirty" Value="$(_GitDirty)" />
+    </ItemGroup>
+  </Target>
+
 </Project>
