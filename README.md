@@ -108,6 +108,14 @@ Any machine needs the **.NET 10 SDK**; the pinned Roslyn (see
 SDK. If it isn't, the startup guard reports a clear error rather than failing silently — bump the
 pinned versions to match.
 
+### Staying up to date
+
+The server records the git commit it was built from (see `server_info`) and, at startup, compares
+it to the latest commit on `origin/main` (GitHub API, cached for ~6 h, short timeout, silent on
+failure). When the running build is behind, it appends a notice to its server instructions so the
+agent reminds you to rebuild and redeploy. Disable with `SHARPSEEK_NO_UPDATE_CHECK`, or run
+`SharpSeek.Server check-update` to see the comparison yourself.
+
 ### Logging
 
 All logging goes to **stderr** (stdout is the MCP channel); your MCP client captures it. The
